@@ -6,6 +6,6 @@ pyspellchecker==0.9.1
 qrcode==8.2
 requests==2.34.2
 beautifulsoup4==4.15.0
-numpy==2.5.5
+numpy==2.3.5
 opencv-python==5.1.0.95
 python-multipart==0.0.20
