@@ -1,0 +1,60 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Python backend
+backend/venv/
+backend/__pycache__/
+**/__pycache__/
+*.pyc
+backend/.env
+
+# SQLite database is generated at runtime; keep the repo clean.
+# (Remove this line if you want to commit the demo database.)
+backend/*.db
+
+.vercel
+
+# Root Python environments
+.venv/
+venv/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Build and temporary files
+release/*.zip
+
+.kilo/
+release/
