@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { apiUrl } from '../lib/api.js'
+import { useEffect, useRef, useState } from 'react'
+import { apiRequest, apiUrl } from '../lib/api.js'
 
 const MODULE_STATUS_LABELS = {
   PENDING: 'Waiting',
@@ -17,6 +17,7 @@ function UnifiedAnalysis({ onNavigate }) {
   const [job, setJob] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const requestInFlightRef = useRef(false)
 
   useEffect(() => () => {
     if (preview) URL.revokeObjectURL(preview)
@@ -32,10 +33,12 @@ function UnifiedAnalysis({ onNavigate }) {
   }
 
   async function pollJob(jobId) {
-    for (let attempt = 0; attempt < 360; attempt += 1) {
-      const response = await fetch(apiUrl(`/api/unified-analysis/${encodeURIComponent(jobId)}`))
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.detail || 'Could not read analysis progress.')
+    const deadline = Date.now() + 6 * 60 * 1000
+    while (Date.now() < deadline) {
+      const data = await apiRequest(apiUrl(`/api/unified-analysis/${encodeURIComponent(jobId)}`), {}, {
+        timeoutMs: 15_000,
+        fallbackMessage: 'Could not read analysis progress.',
+      })
       setJob(data)
       if (['COMPLETED', 'COMPLETED_WITH_FAILURES', 'FAILED'].includes(data.status)) return data
       await new Promise((resolve) => window.setTimeout(resolve, 1000))
@@ -45,8 +48,8 @@ function UnifiedAnalysis({ onNavigate }) {
 
   async function analyze(event) {
     event.preventDefault()
+    if (requestInFlightRef.current) return
     setError('')
-    setJob(null)
     if (!file) {
       setError('Choose one poster image or video first.')
       return
@@ -56,20 +59,26 @@ function UnifiedAnalysis({ onNavigate }) {
       return
     }
 
+    requestInFlightRef.current = true
     setLoading(true)
     try {
       const form = new FormData()
       form.append('file', file)
       const settings = JSON.parse(localStorage.getItem('brandguard-settings') || '{}')
       form.append('languages', settings.defaultLanguage || 'eng')
-      const response = await fetch(apiUrl('/api/unified-analysis'), { method: 'POST', body: form })
-      const initial = await response.json()
-      if (!response.ok) throw new Error(initial.detail || 'Could not start analysis.')
+      const initial = await apiRequest(apiUrl('/api/unified-analysis'), {
+        method: 'POST',
+        body: form,
+      }, {
+        timeoutMs: 30_000,
+        fallbackMessage: 'Could not start analysis.',
+      })
       setJob(initial)
       await pollJob(initial.job_id)
     } catch (requestError) {
       setError(requestError.message || 'The BrandGuard API could not complete this request.')
     } finally {
+      requestInFlightRef.current = false
       setLoading(false)
     }
   }

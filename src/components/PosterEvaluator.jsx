@@ -1,9 +1,8 @@
 import { useRef, useState } from 'react'
-import { API_BASE_URL, apiUrl } from '../lib/api.js'
+import { apiRequest, apiUrl } from '../lib/api.js'
 
 const API_URL = apiUrl('/api/ocr')
 const CLAIMS_URL = apiUrl('/api/analyze-claims')
-const EXTRAS_BASE = API_BASE_URL
 
 const ACCEPTED_TYPES = '.png,.jpg,.jpeg,image/png,image/jpeg'
 
@@ -140,15 +139,20 @@ function PosterEvaluator({ onNavigate }) {
   const [result, setResult] = useState(null)
   const [selectedLanguages, setSelectedLanguages] = useState(getDefaultOcrLanguage)
   const [claimResult, setClaimResult] = useState(null)
+  const [claimLoading, setClaimLoading] = useState(false)
+  const [claimError, setClaimError] = useState('')
   const [riskAlert, setRiskAlert] = useState(null)
 
   const fileInputRef = useRef(null)
+  const requestInFlightRef = useRef(false)
+  const claimsRequestInFlightRef = useRef(false)
 
   const handleFileChange = (event) => {
     const file = event.target.files[0]
     setError('')
     setResult(null)
     setClaimResult(null)
+    setClaimError('')
     setRiskAlert(null)
 
     if (!file) return
@@ -174,21 +178,17 @@ function PosterEvaluator({ onNavigate }) {
   }
 
   const handleLanguageChange = (event) => {
-    const code = event.target.value
-
-    setSelectedLanguages((previous) => {
-      if (previous.includes(code)) {
-        return previous.filter((item) => item !== code)
-      }
-      return [...previous, code]
-      })
-
-    setResult(null)
-    setClaimResult(null)
-    setRiskAlert(null)
+    const { checked, value } = event.target
+    setSelectedLanguages((languages) => (
+      checked
+        ? [...languages, value]
+        : languages.filter((language) => language !== value)
+    ))
   }
 
   const handleAnalyze = async () => {
+    if (requestInFlightRef.current) return
+
     if (!selectedFile) {
       setError('Please upload a poster first.')
       return
@@ -199,122 +199,63 @@ function PosterEvaluator({ onNavigate }) {
       return
     }
 
+    requestInFlightRef.current = true
     setLoading(true)
     setError('')
-    setResult(null)
-    setClaimResult(null)
-    setRiskAlert(null)
-
-      let claimsForRisk = []
 
     try {
       const formData = new FormData()
       formData.append('file', selectedFile)
       formData.append('languages', selectedLanguages.join('+'))
-      console.log('OCR API URL:', API_URL)
-      console.log('Selected file:', selectedFile)
-      console.log('Selected languages:', selectedLanguages)
 
-      const response = await fetch(API_URL, {
+      const data = await apiRequest(API_URL, {
         method: 'POST',
         body: formData,
+      }, {
+        timeoutMs: 120_000,
+        fallbackMessage: 'OCR analysis failed. Please try again.',
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(
-          data.detail || 'OCR analysis failed. Please try again.'
-        )
-      }
-
       setResult(data)
-
-      // --- CLAIM ANALYSIS (phase 2) ---
-      // Runs on the OCR text the backend just extracted. If this second
-      // request fails we show a clear message but KEEP the OCR results —
-      // losing good OCR output because claim analysis hiccuped would be
-      // worse than showing it without claim flags.
-      try {
-        const claimsResponse = await fetch(CLAIMS_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: data.original_extracted_text || '',
-          }),
-        })
-
-        const claimsData = await claimsResponse.json()
-
-        if (!claimsResponse.ok) {
-          throw new Error(
-            claimsData.detail || 'Claim analysis failed. Please try again.'
-          )
-        }
-
-        claimsForRisk = Array.isArray(claimsData.claims) ? claimsData.claims : []
-        setClaimResult(claimsData)
-      } catch (claimErr) {
-        setClaimResult({
-          success: false,
-          error:
-            claimErr.message ||
-            'Claim analysis is unavailable right now.',
-        })
-      }
-
-      // --- RISK ALERT (feature 10) ---
-      // Runs the disclaimer + manipulation checks on the SAME uploaded
-      // image, then aggregates everything into one explainable alert.
-      // Each sub-check is optional: a failure never loses the main results.
-      let disclaimerData = null
-      let manipulationData = null
-
-      try {
-        const formData = new FormData()
-        formData.append('file', selectedFile)
-
-        const disclaimerResponse = await fetch(`${EXTRAS_BASE}/api/detect-disclaimer`, {
-          method: 'POST',
-          body: formData,
-        })
-        if (disclaimerResponse.ok) disclaimerData = await disclaimerResponse.json()
-      } catch { /* optional check */ }
-
-      try {
-        const formData = new FormData()
-        formData.append('file', selectedFile)
-
-        const manipulationResponse = await fetch(`${EXTRAS_BASE}/api/manipulation-check`, {
-          method: 'POST',
-          body: formData,
-        })
-        if (manipulationResponse.ok) manipulationData = await manipulationResponse.json()
-      } catch { /* optional check */ }
-
-      try {
-        const alertResponse = await fetch(`${EXTRAS_BASE}/api/risk-alert`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            claims: claimsForRisk,
-            manipulation: manipulationData,
-            disclaimer: disclaimerData,
-            ocr_confidence: data.ocr_confidence,
-          }),
-        })
-
-        if (alertResponse.ok) {
-          setRiskAlert(await alertResponse.json())
-        }
-      } catch { /* optional check */ }
+      setClaimResult(null)
+      setClaimError('')
+      setRiskAlert(null)
     } catch (err) {
-      setError(
-        err.message ||
-        'Cannot connect to BrandGuard backend. Check that the backend is running.'
-      )
+      setError(err.message || 'Cannot connect to BrandGuard backend.')
     } finally {
+      requestInFlightRef.current = false
       setLoading(false)
+    }
+  }
+
+  const handleClaimAnalysis = async () => {
+    if (claimsRequestInFlightRef.current) return
+
+    const text = result?.original_extracted_text?.trim()
+    if (!text) {
+      setClaimError('Run OCR and confirm the extracted text before analyzing claims.')
+      return
+    }
+
+    claimsRequestInFlightRef.current = true
+    setClaimLoading(true)
+    setClaimError('')
+
+    try {
+      const data = await apiRequest(CLAIMS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      }, {
+        timeoutMs: 30_000,
+        fallbackMessage: 'Claim analysis failed. Please try again.',
+      })
+      setClaimResult(data)
+    } catch (err) {
+      setClaimError(err.message || 'Claim analysis failed.')
+    } finally {
+      claimsRequestInFlightRef.current = false
+      setClaimLoading(false)
     }
   }
 
@@ -328,6 +269,7 @@ function PosterEvaluator({ onNavigate }) {
     setFileName('')
     setResult(null)
     setClaimResult(null)
+    setClaimError('')
     setRiskAlert(null)
     setError('')
 
@@ -667,6 +609,14 @@ function PosterEvaluator({ onNavigate }) {
 
           {/* ---- CLAIM ANALYSIS (from /api/analyze-claims) ---- */}
           <h3>Intelligent Claim Analysis</h3>
+          <button
+            className="secondary-button"
+            onClick={handleClaimAnalysis}
+            disabled={claimLoading || !result.original_extracted_text?.trim()}
+          >
+            {claimLoading ? 'Analyzing claims…' : 'Analyze extracted claims'}
+          </button>
+          {claimError && <p className="upload-error" role="alert">{claimError}</p>}
 
           {claimResult === null ? null : claimResult.error ? (
             <p className="upload-error" role="alert">

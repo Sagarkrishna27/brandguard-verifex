@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { apiUrl } from '../lib/api.js'
+import { useRef, useState } from 'react'
+import { apiRequest, apiUrl } from '../lib/api.js'
 
 function ClaimEvidence({ onNavigate }) {
   const [text, setText] = useState(() => {
@@ -11,19 +11,29 @@ function ClaimEvidence({ onNavigate }) {
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const requestInFlightRef = useRef(false)
 
   async function verify(event) {
     event.preventDefault()
+    if (requestInFlightRef.current) return
     if (!text.trim()) return setError('Paste advertisement copy or run OCR first.')
-    setLoading(true); setError(''); setResult(null)
+    requestInFlightRef.current = true
+    setLoading(true); setError('')
     try {
       const body = new FormData(); body.append('text', text)
       files.forEach((file) => body.append('evidence_files', file))
-      const response = await fetch(apiUrl('/api/verify-claims-evidence'), { method: 'POST', body })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.detail || 'Evidence verification failed.')
+      const data = await apiRequest(apiUrl('/api/verify-claims-evidence'), {
+        method: 'POST',
+        body,
+      }, {
+        timeoutMs: 120_000,
+        fallbackMessage: 'Evidence verification failed.',
+      })
       setResult(data)
-    } catch (err) { setError(err.message) } finally { setLoading(false) }
+    } catch (err) { setError(err.message) } finally {
+      requestInFlightRef.current = false
+      setLoading(false)
+    }
   }
 
   return <>

@@ -7,8 +7,8 @@
   Nothing here simulates success.
 */
 
-import { useState } from 'react'
-import { API_BASE_URL } from '../lib/api.js'
+import { useRef, useState } from 'react'
+import { API_BASE_URL, apiRequest } from '../lib/api.js'
 
 const API = API_BASE_URL
 
@@ -19,6 +19,7 @@ function ImageToolCard({ title, endpoint, children }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  const requestInFlightRef = useRef(false)
 
   const handleFile = (event) => {
     const chosen = event.target.files[0]
@@ -38,11 +39,14 @@ function ImageToolCard({ title, endpoint, children }) {
   }
 
   const analyse = async () => {
+    if (requestInFlightRef.current) return
+
     if (!file) {
       setError('Choose an image first.')
       return
     }
 
+    requestInFlightRef.current = true
     setLoading(true)
     setError('')
 
@@ -50,20 +54,19 @@ function ImageToolCard({ title, endpoint, children }) {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch(`${API}/api/${endpoint}`, {
+      const data = await apiRequest(`${API}/api/${endpoint}`, {
         method: 'POST',
         body: formData,
+      }, {
+        timeoutMs: 60_000,
+        fallbackMessage: 'Analysis failed. Please try again.',
       })
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'Analysis failed. Please try again.')
-      }
 
       setResult(data)
     } catch (err) {
       setError(err.message || 'Cannot reach the BrandGuard backend.')
     } finally {
+      requestInFlightRef.current = false
       setLoading(false)
     }
   }
@@ -187,17 +190,19 @@ function TextToolCard({ title, endpoint, placeholder, resultNote }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  const requestInFlightRef = useRef(false)
 
   const analyse = async (event) => {
     event.preventDefault()
+    if (requestInFlightRef.current) return
     setError('')
-    setResult(null)
 
     if (!text.trim()) {
       setError('Please enter some text first.')
       return
     }
 
+    requestInFlightRef.current = true
     setLoading(true)
 
     try {
@@ -205,21 +210,20 @@ function TextToolCard({ title, endpoint, placeholder, resultNote }) {
         ? { text, url }
         : { text }
 
-      const response = await fetch(`${API}/api/${endpoint}`, {
+      const data = await apiRequest(`${API}/api/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+      }, {
+        timeoutMs: 60_000,
+        fallbackMessage: 'Analysis failed. Please try again.',
       })
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'Analysis failed. Please try again.')
-      }
 
       setResult(data)
     } catch (err) {
       setError(err.message || 'Cannot reach the BrandGuard backend.')
     } finally {
+      requestInFlightRef.current = false
       setLoading(false)
     }
   }
