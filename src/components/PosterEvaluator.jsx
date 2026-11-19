@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { apiRequest, apiUrl } from '../lib/api.js'
 
 const API_URL = apiUrl('/api/ocr')
@@ -144,16 +144,21 @@ function PosterEvaluator({ onNavigate }) {
   const [riskAlert, setRiskAlert] = useState(null)
 
   const fileInputRef = useRef(null)
+  const previewUrlRef = useRef(null)
+  const uploadGenerationRef = useRef(0)
   const requestInFlightRef = useRef(false)
   const claimsRequestInFlightRef = useRef(false)
 
+  useEffect(() => () => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current)
+      previewUrlRef.current = null
+    }
+  }, [])
   const handleFileChange = (event) => {
-    const file = event.target.files[0]
-    setError('')
-    setResult(null)
-    setClaimResult(null)
-    setClaimError('')
-    setRiskAlert(null)
+    const input = event.currentTarget
+    const file = input.files?.[0]
+    input.value = ''
 
     if (!file) return
 
@@ -167,14 +172,28 @@ function PosterEvaluator({ onNavigate }) {
       return
     }
 
-    if (selectedImage) {
-      URL.revokeObjectURL(selectedImage)
+    let previewUrl
+    try {
+      previewUrl = URL.createObjectURL(file)
+    } catch {
+      setError('Could not preview this image. Please choose another file.')
+      return
     }
 
-    setSelectedImage(URL.createObjectURL(file))
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current)
+    }
+
+    previewUrlRef.current = previewUrl
+    uploadGenerationRef.current += 1
+    setSelectedImage(previewUrl)
     setSelectedFile(file)
     setFileName(file.name)
+    setError('')
+    setResult(null)
     setClaimResult(null)
+    setClaimError('')
+    setRiskAlert(null)
   }
 
   const handleLanguageChange = (event) => {
@@ -200,6 +219,7 @@ function PosterEvaluator({ onNavigate }) {
     }
 
     requestInFlightRef.current = true
+    const uploadGeneration = uploadGenerationRef.current
     setLoading(true)
     setError('')
 
@@ -216,12 +236,16 @@ function PosterEvaluator({ onNavigate }) {
         fallbackMessage: 'OCR analysis failed. Please try again.',
       })
 
-      setResult(data)
-      setClaimResult(null)
-      setClaimError('')
-      setRiskAlert(null)
+      if (uploadGeneration === uploadGenerationRef.current) {
+        setResult(data)
+        setClaimResult(null)
+        setClaimError('')
+        setRiskAlert(null)
+      }
     } catch (err) {
-      setError(err.message || 'Cannot connect to BrandGuard backend.')
+      if (uploadGeneration === uploadGenerationRef.current) {
+        setError(err.message || 'Cannot connect to BrandGuard backend.')
+      }
     } finally {
       requestInFlightRef.current = false
       setLoading(false)
@@ -238,6 +262,7 @@ function PosterEvaluator({ onNavigate }) {
     }
 
     claimsRequestInFlightRef.current = true
+    const uploadGeneration = uploadGenerationRef.current
     setClaimLoading(true)
     setClaimError('')
 
@@ -250,9 +275,13 @@ function PosterEvaluator({ onNavigate }) {
         timeoutMs: 30_000,
         fallbackMessage: 'Claim analysis failed. Please try again.',
       })
-      setClaimResult(data)
+      if (uploadGeneration === uploadGenerationRef.current) {
+        setClaimResult(data)
+      }
     } catch (err) {
-      setClaimError(err.message || 'Claim analysis failed.')
+      if (uploadGeneration === uploadGenerationRef.current) {
+        setClaimError(err.message || 'Claim analysis failed.')
+      }
     } finally {
       claimsRequestInFlightRef.current = false
       setClaimLoading(false)
@@ -260,8 +289,10 @@ function PosterEvaluator({ onNavigate }) {
   }
 
   const handleRemove = () => {
-    if (selectedImage) {
-      URL.revokeObjectURL(selectedImage)
+    uploadGenerationRef.current += 1
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current)
+      previewUrlRef.current = null
     }
 
     setSelectedImage(null)
