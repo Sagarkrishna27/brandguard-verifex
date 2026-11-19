@@ -272,7 +272,7 @@ function PosterEvaluator({ onNavigate }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       }, {
-        timeoutMs: 30_000,
+        timeoutMs: 120_000,
         fallbackMessage: 'Claim analysis failed. Please try again.',
       })
       if (uploadGeneration === uploadGenerationRef.current) {

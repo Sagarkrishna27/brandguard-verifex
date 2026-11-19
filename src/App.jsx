@@ -9,7 +9,7 @@
   without adding a router package.
 */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 import Sidebar from './components/Sidebar.jsx'
 import Dashboard from './components/Dashboard.jsx'
@@ -26,8 +26,23 @@ import PublicReport from './components/PublicReport.jsx'
 function App() {
   // Which page is open. Starts on the dashboard.
   const [page, setPage] = useState('dashboard')
+  const [slowRequestCount, setSlowRequestCount] = useState(0)
   const [publicReportId] = useState(() => window.location.hash.match(/^#\/verify\/([A-Za-z0-9_-]+)$/)?.[1] || '')
-  if (publicReportId) return <PublicReport reportId={publicReportId} />
+
+  useEffect(() => {
+    const slowRequests = new Set()
+    const handleApiRequest = (event) => {
+      const { requestId, status } = event.detail || {}
+      if (status === 'slow') slowRequests.add(requestId)
+      if (status === 'finish') slowRequests.delete(requestId)
+      setSlowRequestCount(slowRequests.size)
+    }
+
+    window.addEventListener('brandguard:api-request', handleApiRequest)
+    return () => window.removeEventListener('brandguard:api-request', handleApiRequest)
+  }, [])
+
+  if (publicReportId) return <PublicReport reportId={publicReportId} slowRequestCount={slowRequestCount} />
 
   // Sidebar highlights the active page
   const handleNavigate = (id) => setPage(id)
@@ -59,7 +74,14 @@ function App() {
   return (
     <div className="app-container">
       <Sidebar activePage={page} onNavigate={handleNavigate} />
-      <main className="main-content">{renderPage()}</main>
+      <main className="main-content">
+        {slowRequestCount > 0 && (
+          <p className="page-intro" role="status">
+            Server may be waking up (first request can take up to 90 seconds).
+          </p>
+        )}
+        {renderPage()}
+      </main>
     </div>
   )
 }

@@ -97,6 +97,13 @@ CLAIM_RULES = {
         "evidence": "Delivery service terms and records supporting the promised timeline.",
         "risk": "MEDIUM",
     },
+    "OUTCOME": {
+        "patterns": [
+            r"\b(shape your body|lose \d+(?:\.\d+)?\s*(?:kg|kilograms?|lb|lbs|pounds?)|results?)\s+(?:in|within)\s+\d+\s+days?\b",
+        ],
+        "evidence": "Programme documentation and an individual-results-vary disclaimer.",
+        "risk": "HIGH",
+    },
 }
 
 

@@ -32,9 +32,10 @@ TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 if os.path.exists(TESSERACT_PATH):
     pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
 
-MAX_FILE_SIZE = 15 * 1024 * 1024
+MAX_FILE_SIZE = 10 * 1024 * 1024
 MAX_IMAGE_WIDTH = 2400
 MAX_IMAGE_HEIGHT = 3200
+MAX_OCR_IMAGE_SIDE = 1600
 
 PSM_MODES = [6, 11, 12]
 
@@ -75,7 +76,7 @@ app.include_router(trust_passport_router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[origin.strip() for origin in os.getenv("BRANDGUARD_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if origin.strip()],
+    allow_origins=[origin.strip() for origin in os.getenv("BRANDGUARD_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,https://brandguard-seven.vercel.app").split(",") if origin.strip()],
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
@@ -404,23 +405,28 @@ def run_multiple_ocr_passes(prepared, language):
 
     results = {}
 
-    for image_name, processed_image in prepared.items():
+    for pass_index, (image_name, processed_image) in enumerate(prepared.items()):
 
-        for psm in PSM_MODES:
+        if pass_index >= len(PSM_MODES):
+            break
 
-            pass_name = f"{image_name}_psm_{psm}"
+        psm = PSM_MODES[pass_index]
+        pass_name = f"{image_name}_psm_{psm}"
 
+        try:
             result = run_ocr(
                 processed_image,
                 psm=psm,
                 language=language
             )
+        except RuntimeError:
+            continue
 
-            result["candidate_score"] = candidate_score(result)
-            result["image_processing"] = image_name
-            result["psm_mode"] = psm
+        result["candidate_score"] = candidate_score(result)
+        result["image_processing"] = image_name
+        result["psm_mode"] = psm
 
-            results[pass_name] = result
+        results[pass_name] = result
 
     return results
 
@@ -470,10 +476,10 @@ def get_regions(image, language):
     }
 
     region_modes = {
-        "headline": [6, 11],
-        "offer_and_promo_code": [6, 11, 12],
-        "conditions": [6, 11],
-        "footer": [6, 11, 12]
+        "headline": [6],
+        "offer_and_promo_code": [6],
+        "conditions": [6],
+        "footer": [6]
     }
 
     results = {}
@@ -483,18 +489,6 @@ def get_regions(image, language):
         crop = image.crop(coordinates)
         crop_scale = 1.0
 
-        if crop.width < 1800:
-
-            crop_scale = 1800 / crop.width
-
-            crop = crop.resize(
-                (
-                    1800,
-                    int(crop.height * crop_scale)
-                ),
-                Image.Resampling.LANCZOS
-            )
-
         crop = ImageOps.grayscale(crop)
         crop = ImageEnhance.Contrast(crop).enhance(1.8)
         crop = ImageEnhance.Sharpness(crop).enhance(2.0)
@@ -503,13 +497,16 @@ def get_regions(image, language):
 
         for psm in region_modes[region_name]:
 
-            result = run_ocr(
-                crop,
-                psm=psm,
-                language=language,
-                geometry_origin=(coordinates[0], coordinates[1]),
-                geometry_scale=crop_scale,
-            )
+            try:
+                result = run_ocr(
+                    crop,
+                    psm=psm,
+                    language=language,
+                    geometry_origin=(coordinates[0], coordinates[1]),
+                    geometry_scale=crop_scale,
+                )
+            except RuntimeError:
+                continue
 
             region_candidates[str(psm)] = {
                 "text": result["text"],
@@ -523,6 +520,20 @@ def get_regions(image, language):
                     "height": image.height,
                 },
             }
+
+        if not region_candidates:
+            results[region_name] = {
+                "best_psm_mode": None,
+                "text": "",
+                "raw_text": "",
+                "word_count": 0,
+                "average_confidence": 0,
+                "words": [],
+                "line_groups": [],
+                "coordinate_space": {"width": width, "height": height},
+                "all_modes": {},
+            }
+            continue
 
         best_mode = max(
             region_candidates,
@@ -841,7 +852,7 @@ async def perform_ocr(
 
             raise HTTPException(
                 status_code=413,
-                detail="Image must be below 15 MB."
+                detail="Image must be 10 MB or smaller."
             )
 
         if not contents:
@@ -864,15 +875,25 @@ async def perform_ocr(
         original = ImageOps.exif_transpose(
             image
         ).convert("RGB")
+        if max(original.size) > MAX_OCR_IMAGE_SIDE:
+            original.thumbnail(
+                (MAX_OCR_IMAGE_SIDE, MAX_OCR_IMAGE_SIDE),
+                Image.Resampling.LANCZOS,
+            )
 
         # Image preprocessing.
         prepared = prepare_images(original)
 
-        # Nine full-image OCR passes.
+        # At most three full-image OCR passes.
         pass_results = run_multiple_ocr_passes(
             prepared,
             selected_language
         )
+        if not pass_results:
+            raise HTTPException(
+                status_code=504,
+                detail="OCR timed out before a result could be produced. Please try again.",
+            )
 
         # Select the highest-ranked candidate.
         best_name, best = select_best_candidate(
@@ -1202,7 +1223,8 @@ async def verify_claims_evidence(text: str = Form(...), evidence_files: list[Upl
             raise HTTPException(status_code=413, detail=f"Evidence file {uploaded.filename} exceeds 15 MB.")
         extracted = ""
         if uploaded.content_type and uploaded.content_type.startswith("image/"):
-            try: extracted = pytesseract.image_to_string(Image.open(io.BytesIO(content)).convert("RGB"))
+            try: extracted = pytesseract.image_to_string(Image.open(io.BytesIO(content)).convert("RGB"), timeout=60)
+            except RuntimeError: extracted = ""
             except Exception: extracted = ""
         else:
             extracted = content.decode("utf-8", errors="ignore")
@@ -1246,7 +1268,10 @@ async def analyze_video(file: UploadFile = File(...), include_frame_checks: bool
             if not ok: continue
             analyzed += 1
             frame_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            text = pytesseract.image_to_string(frame_image).strip()
+            try:
+                text = pytesseract.image_to_string(frame_image, timeout=60).strip()
+            except RuntimeError:
+                text = ""
             claim_data = analyze_claims(text)
             frame_record = {
                 "timestamp_seconds": round(seconds, 2),

@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
-import { apiUrl } from '../lib/api.js'
+import { apiRequest, apiUrl } from '../lib/api.js'
 
-function PublicReport({ reportId }) {
+function PublicReport({ reportId, slowRequestCount = 0 }) {
   const [report, setReport] = useState(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
     let active = true
-    fetch(apiUrl(`/api/analysis-reports/${encodeURIComponent(reportId)}`))
-      .then(async (response) => {
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.detail || 'The report is not available.')
+    apiRequest(apiUrl(`/api/analysis-reports/${encodeURIComponent(reportId)}`), {}, {
+      timeoutMs: 120_000,
+      fallbackMessage: 'The report is not available.',
+    })
+      .then((data) => {
         if (active) setReport(data)
       })
       .catch((requestError) => { if (active) setError(requestError.message) })
@@ -20,6 +21,11 @@ function PublicReport({ reportId }) {
   return (
     <main className="public-report-page">
       <header className="page-header"><h1>Verifix Advertisement Analysis Record</h1></header>
+      {slowRequestCount > 0 && (
+        <p className="page-intro" role="status">
+          Server may be waking up (first request can take up to 90 seconds).
+        </p>
+      )}
       {error && <p className="upload-error" role="alert">{error}</p>}
       {!report && !error && <p role="status">Loading the public report…</p>}
       {report && (

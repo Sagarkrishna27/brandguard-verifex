@@ -20,7 +20,7 @@ function VideoAnalysis({ onNavigate }) {
         method: 'POST',
         body,
       }, {
-        timeoutMs: 180_000,
+        timeoutMs: 120_000,
         fallbackMessage: 'Video analysis failed.',
       })
       setResult(data)

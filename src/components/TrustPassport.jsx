@@ -14,7 +14,7 @@
 */
 
 import { useRef, useState } from 'react'
-import { apiUrl } from '../lib/api.js'
+import { apiRequest, apiUrl } from '../lib/api.js'
 
 const API_BASE = apiUrl('/api/trust-passport')
 
@@ -95,16 +95,13 @@ function TrustPassport({ onNavigate }) {
       formData.append('notes', notes.trim())
       formData.append('version', '1')
 
-      const response = await fetch(API_BASE + '/', {
+      const data = await apiRequest(API_BASE + '/', {
         method: 'POST',
         body: formData,
+      }, {
+        timeoutMs: 120_000,
+        fallbackMessage: 'Could not create the Trust Passport.',
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'Could not create the Trust Passport.')
-      }
 
       setPassport(data)
     } catch (err) {
@@ -131,12 +128,10 @@ function TrustPassport({ onNavigate }) {
     setVerifyResult(null)
 
     try {
-      const response = await fetch(`${API_BASE}/${encodeURIComponent(id)}`)
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'Verification failed.')
-      }
+      const data = await apiRequest(`${API_BASE}/${encodeURIComponent(id)}`, {}, {
+        timeoutMs: 120_000,
+        fallbackMessage: 'Verification failed.',
+      })
 
       setVerifyResult(data)
     } catch (err) {
@@ -176,13 +171,14 @@ function TrustPassport({ onNavigate }) {
       formData.append('risk_score', String(reviewRiskScore))
       formData.append('reviewer', reviewerName.trim())
       formData.append('notes', reviewNotes.trim())
-      const response = await fetch(`${API_BASE}/${encodeURIComponent(verifyId.trim())}/review`, {
+      const data = await apiRequest(`${API_BASE}/${encodeURIComponent(verifyId.trim())}/review`, {
         method: 'PATCH',
         headers: { 'X-Reviewer-Token': reviewerToken.trim() },
         body: formData,
+      }, {
+        timeoutMs: 120_000,
+        fallbackMessage: 'Review update failed.',
       })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.detail || 'Review update failed.')
       setVerifyResult(data)
       setReviewMessage('Official review outcome saved.')
     } catch (err) {

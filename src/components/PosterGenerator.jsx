@@ -10,7 +10,7 @@
 */
 
 import { useState } from 'react'
-import { apiUrl } from '../lib/api.js'
+import { apiRequest, apiUrl } from '../lib/api.js'
 
 const API = apiUrl('/api/generate-poster')
 
@@ -64,7 +64,7 @@ function PosterGenerator({ onNavigate }) {
     setLoading(true)
 
     try {
-      const response = await fetch(API, {
+      const data = await apiRequest(API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -79,13 +79,10 @@ function PosterGenerator({ onNavigate }) {
           size,
           colour_theme: colourTheme,
         }),
+      }, {
+        timeoutMs: 120_000,
+        fallbackMessage: 'Poster generation failed. Please try again.',
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.detail || 'Poster generation failed. Please try again.')
-      }
 
       setPoster(data)
     } catch (err) {

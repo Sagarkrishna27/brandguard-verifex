@@ -36,7 +36,7 @@ function UnifiedAnalysis({ onNavigate }) {
     const deadline = Date.now() + 6 * 60 * 1000
     while (Date.now() < deadline) {
       const data = await apiRequest(apiUrl(`/api/unified-analysis/${encodeURIComponent(jobId)}`), {}, {
-        timeoutMs: 15_000,
+        timeoutMs: 120_000,
         fallbackMessage: 'Could not read analysis progress.',
       })
       setJob(data)
@@ -70,7 +70,7 @@ function UnifiedAnalysis({ onNavigate }) {
         method: 'POST',
         body: form,
       }, {
-        timeoutMs: 30_000,
+        timeoutMs: 120_000,
         fallbackMessage: 'Could not start analysis.',
       })
       setJob(initial)

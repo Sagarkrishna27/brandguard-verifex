@@ -86,6 +86,36 @@ def initialize_database():
             )
         """)
 
+        passport_count = connection.execute(
+            "SELECT COUNT(*) FROM trust_passports"
+        ).fetchone()[0]
+        if passport_count == 0:
+            created_at = datetime.now(timezone.utc).isoformat()
+            demo_passports = [
+                ("demo-verified", "DEMO - Verified Passport", "VERIFIED", 12, "Demo passport: verified example."),
+                ("demo-needs-review", "DEMO - Needs Review Passport", "NEEDS REVIEW", 48, "Demo passport: review required example."),
+                ("demo-rejected", "DEMO - Rejected Passport", "REJECTED", 91, "Demo passport: rejected example."),
+            ]
+            connection.executemany("""
+                INSERT INTO trust_passports (
+                    id, advertisement_name, file_hash, review_status,
+                    risk_score, reviewer, notes, version, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, [
+                (
+                    passport_id,
+                    name,
+                    hashlib.sha256(passport_id.encode("utf-8")).hexdigest(),
+                    status,
+                    risk_score,
+                    "BrandGuard Demo",
+                    notes,
+                    1,
+                    created_at,
+                )
+                for passport_id, name, status, risk_score, notes in demo_passports
+            ])
+
         connection.commit()
 
 
@@ -97,10 +127,11 @@ initialize_database()
 # --------------------------------------------------
 
 def generate_qr(passport_id):
-
-    verification_url = (
-        f"{PUBLIC_BASE_URL}/api/trust-passport/{passport_id}"
-    )
+    frontend_base_url = os.getenv("BRANDGUARD_FRONTEND_URL", "").strip().rstrip("/")
+    if frontend_base_url:
+        verification_url = f"{frontend_base_url}/#/verify/{passport_id}"
+    else:
+        verification_url = f"{PUBLIC_BASE_URL}/api/trust-passport/{passport_id}"
 
     qr = qrcode.QRCode(
         version=None,

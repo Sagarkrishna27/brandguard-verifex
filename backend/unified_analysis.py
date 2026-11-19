@@ -35,7 +35,8 @@ DATA_DIR = Path(os.getenv("BRANDGUARD_DATA_DIR", str(BASE_DIR))).expanduser().re
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DATABASE_PATH = DATA_DIR / "brandguard_analysis.db"
 MAX_VIDEO_BYTES = 200 * 1024 * 1024
-MAX_IMAGE_BYTES = 15 * 1024 * 1024
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+MAX_OCR_IMAGE_SIDE = 1600
 
 
 def _connect():
@@ -346,10 +347,18 @@ def _store_finished_report(report):
 
 def _run_image_job(job_id, row):
     image = ImageOps.exif_transpose(Image.open(row["temp_path"])).convert("RGB")
+    ocr_image = image.copy()
+    ocr_image.thumbnail(
+        (MAX_OCR_IMAGE_SIDE, MAX_OCR_IMAGE_SIDE),
+        Image.Resampling.LANCZOS,
+    )
+    ocr_buffer = io.BytesIO()
+    ocr_image.save(ocr_buffer, format="PNG")
+    ocr_buffer.seek(0)
     upload = UploadFile(
-        filename=row["filename"],
-        file=open(row["temp_path"], "rb"),
-        headers=Headers({"content-type": row["media_type"]}),
+        filename=Path(row["filename"]).stem + ".png",
+        file=ocr_buffer,
+        headers=Headers({"content-type": "image/png"}),
     )
     try:
         ocr = _run_module(job_id, "ocr", lambda: asyncio.run(bg.perform_ocr(upload, row["languages"])))

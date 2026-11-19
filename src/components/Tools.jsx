@@ -58,7 +58,7 @@ function ImageToolCard({ title, endpoint, children }) {
         method: 'POST',
         body: formData,
       }, {
-        timeoutMs: 60_000,
+        timeoutMs: 120_000,
         fallbackMessage: 'Analysis failed. Please try again.',
       })
 
@@ -215,7 +215,7 @@ function TextToolCard({ title, endpoint, placeholder, resultNote }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       }, {
-        timeoutMs: 60_000,
+        timeoutMs: 120_000,
         fallbackMessage: 'Analysis failed. Please try again.',
       })
 
@@ -350,8 +350,14 @@ function BrandDnaCard() {
       const scanHistory = JSON.parse(history)
       if (!Array.isArray(scanHistory) || scanHistory.length === 0) throw new Error('Enter a non-empty JSON array of prior scan summaries.')
       setLoading(true)
-      const response = await fetch(`${API}/api/brand-dna`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scan_history: scanHistory }) })
-      const data = await response.json(); if (!response.ok) throw new Error(data.detail || 'Brand DNA analysis failed.')
+      const data = await apiRequest(`${API}/api/brand-dna`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scan_history: scanHistory }),
+      }, {
+        timeoutMs: 120_000,
+        fallbackMessage: 'Brand DNA analysis failed.',
+      })
       setResult(data)
     } catch (err) { setError(err.message) } finally { setLoading(false) }
   }
