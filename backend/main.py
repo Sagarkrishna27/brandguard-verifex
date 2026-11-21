@@ -1113,6 +1113,50 @@ async def manipulation_check_endpoint(file: UploadFile = File(...)):
     return detect_manipulation(image)
 
 
+@app.post("/api/media-forensics")
+async def media_forensics_endpoint(file: UploadFile = File(...)):
+    """Explainable image/video forensics; no unsupported deepfake verdicts."""
+    content_type = (file.content_type or "").lower()
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded media is empty.")
+
+    from media_forensics import (
+        MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, analyze_image, analyze_video,
+    )
+
+    if content_type.startswith("image/"):
+        if len(content) > MAX_IMAGE_BYTES:
+            raise HTTPException(status_code=413, detail="Image must be below 15 MB.")
+        try:
+            image = Image.open(io.BytesIO(content))
+            image.load()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Uploaded image could not be decoded.")
+        return analyze_image(image, detect_manipulation)
+
+    if content_type.startswith("video/"):
+        if len(content) > MAX_VIDEO_BYTES:
+            raise HTTPException(status_code=413, detail="Video must be below 200 MB.")
+        suffix = os.path.splitext(file.filename or "upload.mp4")[1] or ".mp4"
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp:
+                temp.write(content)
+                temp_path = temp.name
+            return analyze_video(temp_path, detect_manipulation)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error))
+        finally:
+            if temp_path:
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
+
+    raise HTTPException(status_code=400, detail="Upload an image or video file.")
+
+
 @app.post("/api/risk-alert")
 async def risk_alert_endpoint(payload: dict):
     """Feature 10: aggregates all signals into one explainable alert."""
