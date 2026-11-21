@@ -89,6 +89,7 @@ IMAGE_MODULES = [
     ("disclaimer", "Disclaimer Detection"),
     ("qr", "QR Detection"),
     ("manipulation", "Image Manipulation Detection"),
+    ("media_forensics", "Multimodal Media Forensics"),
     ("evaluation", "Advertisement Evaluation"),
     ("risk", "Risk Alerts"),
     ("price_discount", "Price and Discount Verification"),
@@ -110,6 +111,7 @@ VIDEO_MODULES = [
     ("disclaimer", "Disclaimer Detection"),
     ("qr", "QR Detection in Sampled Frames"),
     ("manipulation", "Frame Manipulation Checks"),
+    ("media_forensics", "Video and Audio Forensics"),
     ("evaluation", "Advertisement Evaluation"),
     ("risk", "Risk Alerts"),
     ("price_discount", "Price and Discount Verification"),
@@ -376,7 +378,10 @@ def _run_image_job(job_id, row):
             _run_module(job_id, module_id, lambda: _skip("Depends on successful OCR."))
         claims = []
 
+    from media_forensics import analyze_image as run_media_forensics
+
     parallel = {
+        "media_forensics": lambda: run_media_forensics(image, bg.detect_manipulation),
         "disclaimer": lambda: bg.detect_hidden_disclaimer(image),
         "qr": lambda: bg.detect_embedded_qr(image),
         "manipulation": lambda: bg.detect_manipulation(image),
@@ -421,6 +426,12 @@ def _run_video_job(job_id, row):
     video_data = timeline.get("result") if timeline and timeline.get("status") == "COMPLETED" else None
     frames = (video_data or {}).get("sampled_frames", [])
     if video_data:
+        from media_forensics import analyze_video as run_video_forensics
+        _run_module(
+            job_id,
+            "media_forensics",
+            lambda: run_video_forensics(row["temp_path"], bg.detect_manipulation),
+        )
         frame_text = "\n".join(frame.get("text", "") for frame in frames)
         frame_claims = []
         seen = set()
@@ -466,7 +477,7 @@ def _run_video_job(job_id, row):
                                                    "note": "Frame-sampled review only; no compliance verdict."})
         _run_module(job_id, "improved_poster", lambda: _skip("A summary poster needs human selection of verified wording and is not generated automatically from uncertain frame OCR."))
         return {"video": video_data, "text": frame_text, "claims": risk_claims}
-    for module_id in ("frame_ocr_claims", "ocr_regions", "critical_values", "claim_evidence", "proof_claim", "disclaimer", "qr", "manipulation", "evaluation", "risk", "price_discount", "website_truth", "food_verification", "improvement", "completeness", "improved_poster"):
+    for module_id in ("frame_ocr_claims", "ocr_regions", "critical_values", "claim_evidence", "proof_claim", "disclaimer", "qr", "manipulation", "media_forensics", "evaluation", "risk", "price_discount", "website_truth", "food_verification", "improvement", "completeness", "improved_poster"):
         _run_module(job_id, module_id, lambda: _skip("Depends on successful video decoding and frame sampling."))
     return {"video": None, "text": "", "claims": []}
 
