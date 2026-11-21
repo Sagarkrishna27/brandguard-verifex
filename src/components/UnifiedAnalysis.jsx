@@ -100,7 +100,7 @@ function UnifiedAnalysis({ onNavigate }) {
         <h1>One-Upload Advertisement Review</h1>
       </header>
       <p className="page-intro">
-        Upload one poster or video. BrandGuard runs the existing applicable checks and keeps failures and verification limits visible.
+        Upload one poster or video. Verifex runs the applicable checks, including media-forensics triage, and keeps failures and verification limits visible.
       </p>
 
       <form className="evaluator-card unified-upload" onSubmit={analyze}>
@@ -136,6 +136,11 @@ function UnifiedAnalysis({ onNavigate }) {
                   <span className={statusClass(module.status)}>{MODULE_STATUS_LABELS[module.status] || module.status}</span>
                 </div>
                 <p>{module.message}</p>
+                {module.id === 'media_forensics' && (
+                  <p className="tool-note">
+                    Forensic signals and face-region detection are review aids only. AI-generated image/video and deepfake voice verdicts are not configured; no result certifies authenticity.
+                  </p>
+                )}
                 {module.id === 'ocr' && module.result?.original_extracted_text && (
                   <blockquote className="analysis-extracted-text">{module.result.original_extracted_text}</blockquote>
                 )}
