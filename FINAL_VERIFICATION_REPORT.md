@@ -10,7 +10,7 @@ Verification date: 2026-11-18. Tests used the existing React/Vite frontend and F
 | Frontend production build | PASS | `npm.cmd run build` completed; Vite 8.3.8 produced `dist/`. |
 | Backend compilation | PASS | `backend/venv/Scripts/python.exe -m compileall -q .` completed with exit code 0. |
 | Backend startup and health | PASS | FastAPI returned `healthy`, API version `3.0.0`, Tesseract `5.4.0.20240606`; 14 configured language codes plus `osd` were installed. |
-| Backend automated test suite | NOT TESTED | No backend test suite or test command is configured in this project. Manual API and browser checks were run instead. |
+| Backend automated test suite | PASS (Round 3 update) | `backend/.venv/Scripts/python.exe -m pytest -q`: 19 passed; one Starlette/httpx deprecation warning. |
 | Missing upload handling | PASS | `POST /api/unified-analysis` without a file returned HTTP 422; the UI keeps Analyze disabled until a file is selected. |
 | Local CORS | PASS | Preflight from the configured local Vite origin was accepted. Production origins were not tested. |
 | Browser console/API errors | PASS | No console errors or failed requests were observed during the local page sweep and tested workflows. |
@@ -67,7 +67,35 @@ Verification date: 2026-11-18. Tests used the existing React/Vite frontend and F
 - PDF certificate text extraction, certificate authenticity, legal/FSSAI compliance, and official price/reference-price comparison.
 - Accuracy of manipulation/risk heuristics against labeled ground truth and duplicate-review detection.
 - Public deployment, HTTPS access from another device, external QR scanning, production CORS, persistent storage after host restart, backups, load testing, penetration testing and security certification.
-- There is no configured automated Python test suite; compilation plus manual local API/browser checks were used.
+- Kannada, Hindi and mixed-script OCR were not tested against a representative labelled image set, so accuracy remains unverified.
+
+## Round 3 update — 2026-11-21
+
+- Reproduced both media-forensics test failures on Python 3.14.6 with the sole installed distribution `opencv-python==5.1.0.95`. `pip check` reported no dependency conflicts. This build exposes `cv2.data` but not `cv2.CascadeClassifier`, `cv2.objdetect`, or the Haar cascade XML file; the failure is an unavailable optional face-region capability, not a failure in the independent manipulation heuristic.
+- Updated `backend/media_forensics.py` to return `face_analysis.status = NOT_CONFIGURED` when the OpenCV classifier API or cascade data is absent, rather than aborting the whole image analysis.
+- Added a regression test covering that missing-capability path in `backend/tests/test_media_forensics.py`. The complete backend suite now passes: 19 passed.
+- Added optional `pypdf`-based selectable-text extraction, bounded to 100 pages and 1 MB of extracted text. Scanned PDFs without a text layer remain insufficient; if `pypdf` is absent, extraction is `NOT_CONFIGURED`.
+- Changed evidence matching so text overlap can produce `UNDER_REVIEW` or `INSUFFICIENT`, never automatic `SUPPORTED`. Added tests for that behavior, unsupported PDF parsing, and invalid UTF-8.
+- Corrected `README.md` and `backend/TESTING.md` to document the actual evidence extraction and backend test behavior.
+- The initial audit exposed legal screening and autonomous investigation as `NOT_CONFIGURED`. Subsequent changes added keyword-based preliminary legal screening and a separate `/api/investigate-claims` endpoint using Tavily search and Gemini preliminary assessment.
+- Added a Claim Evidence UI action for public-source investigation. Automated tests use mocked provider responses; no live Tavily/Gemini API operation was verified in this final test pass.
+- Legal screening is heuristic and requires human review. Investigation results are preliminary; search snippets and AI assessments are not proof, and claims are never marked verified automatically.
+- Updated the README to describe these current limitations and distinguish implemented integrations from verified live operation.
+
+## Round 3 changed-file record
+
+| File | Reason |
+|---|---|
+| `backend/media_forensics.py` | Prevent optional face-region detection from crashing media analysis when OpenCV lacks Haar support/data. |
+| `backend/tests/test_media_forensics.py` | Cover the missing-classifier fallback and preserve existing manipulation failures. |
+| `backend/main.py` | Add bounded evidence extraction and prevent lexical overlap from automatically accepting documents. |
+| `backend/requirements.txt` | Add the optional PDF text parser used by the evidence endpoint. |
+| `backend/tests/test_evidence_verification.py` | Cover manual-review-only matching and extraction failures. |
+| `backend/unified_analysis.py` | Surface unconfigured legal and external-investigation checks in one-upload and public reports. |
+| `src/components/ClaimEvidence.jsx` | Display evidence extraction states and review-only match outcomes. |
+| `README.md` | Document actual PDF, test and face-detection behavior. |
+| `backend/TESTING.md` | Update the backend test coverage description. |
+| `FINAL_VERIFICATION_REPORT.md` | Record this audit, its tests, limitations and changed-file rationale. |
 
 ## Submission archive
 

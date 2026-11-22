@@ -18,12 +18,62 @@ MAX_IMAGE_BYTES = 15 * 1024 * 1024
 MAX_VIDEO_SAMPLES = 12
 
 
+def _heuristic_finding_count(result):
+    """Count reported heuristic findings without interpreting them as proof."""
+    if not isinstance(result, dict):
+        return None
+    findings = result.get("findings")
+    return len(findings) if isinstance(findings, (list, tuple)) else None
+
+
+def _image_triage(image_report, faces):
+    finding_count = _heuristic_finding_count(image_report.get("result"))
+    return {
+        "status": "COMPLETED" if image_report.get("status") == "COMPLETED" else "PARTIAL",
+        "observable_signals": {
+            "heuristic_finding_count": finding_count,
+            "face_region_status": faces.get("status"),
+            "face_like_regions": faces.get("count", 0),
+        },
+        "ai_deepfake_detection": "NOT_CONFIGURED",
+        "verdict": None,
+        "interpretation": (
+            "This summary organizes observable forensic signals for human review. "
+            "It does not determine whether media is manipulated or AI-generated."
+        ),
+        "human_review_required": True,
+    }
+
+
 def _face_regions(image):
     """Return face-like regions from OpenCV's bundled frontal-face cascade."""
-    cascade_path = os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml")
-    classifier = cv2.CascadeClassifier(cascade_path)
+    classifier_type = getattr(cv2, "CascadeClassifier", None)
+    cascade_directory = getattr(getattr(cv2, "data", None), "haarcascades", None)
+    if not callable(classifier_type) or not cascade_directory:
+        return {
+            "status": "NOT_CONFIGURED",
+            "count": 0,
+            "regions": [],
+            "message": "This OpenCV installation does not provide the Haar cascade API and data required for face-region detection.",
+        }
+
+    cascade_path = os.path.join(cascade_directory, "haarcascade_frontalface_default.xml")
+    if not os.path.isfile(cascade_path):
+        return {
+            "status": "NOT_CONFIGURED",
+            "count": 0,
+            "regions": [],
+            "message": "The frontal-face Haar cascade file is not installed.",
+        }
+
+    classifier = classifier_type(cascade_path)
     if classifier.empty():
-        return {"status": "NOT_CONFIGURED", "count": 0, "regions": []}
+        return {
+            "status": "NOT_CONFIGURED",
+            "count": 0,
+            "regions": [],
+            "message": "The frontal-face Haar cascade could not be loaded.",
+        }
 
     rgb = image.convert("RGB")
     gray = cv2.cvtColor(np.asarray(rgb), cv2.COLOR_RGB2GRAY)
@@ -60,12 +110,14 @@ def analyze_image(image, image_forensics_fn):
         manipulation_status = "FAILED"
 
     faces = _face_regions(image)
+    image_report = {
+        "status": manipulation_status,
+        "result": manipulation,
+    }
     return {
         "media_type": "image",
-        "image_forensics": {
-            "status": manipulation_status,
-            "result": manipulation,
-        },
+        "manipulation_triage": _image_triage(image_report, faces),
+        "image_forensics": image_report,
         "face_analysis": faces,
         "ai_generated_media_detection": {
             "status": "NOT_CONFIGURED",
@@ -82,6 +134,16 @@ def analyze_image(image, image_forensics_fn):
 
 def _audio_stream_info(video_path):
     ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        project_ffprobe = os.path.abspath(
+            os.path.join(
+                os.path.dirname(__file__),
+                "..", "tools", "ffmpeg", "bin", "ffprobe.exe",
+            )
+        )
+        if os.path.isfile(project_ffprobe):
+            ffprobe = project_ffprobe
+
     if not ffprobe:
         return {
             "status": "NOT_CONFIGURED",
@@ -173,8 +235,40 @@ def analyze_video(video_path, image_forensics_fn):
     finally:
         capture.release()
 
+    audio_info = _audio_stream_info(video_path)
+    finding_counts = [
+        _heuristic_finding_count(sample.get("frame_forensics", {}).get("result"))
+        for sample in samples
+    ]
+    known_finding_counts = [count for count in finding_counts if count is not None]
+    face_region_count = sum(
+        sample.get("face_analysis", {}).get("count", 0)
+        for sample in samples
+    )
+    video_triage = {
+        "status": "COMPLETED" if samples else "PARTIAL",
+        "observable_signals": {
+            "frames_sampled": len(samples),
+            "heuristic_finding_count": sum(known_finding_counts) if known_finding_counts else None,
+            "face_like_regions_across_samples": face_region_count,
+            "repeated_sampled_frames": repeated_frames,
+            "large_visual_changes": len(scene_changes),
+            "audio_stream_status": audio_info.get("status"),
+            "audio_stream_present": audio_info.get("present"),
+        },
+        "ai_deepfake_detection": "NOT_CONFIGURED",
+        "voice_clone_detection": "NOT_CONFIGURED",
+        "verdict": None,
+        "interpretation": (
+            "This summary organizes sampled visual and audio metadata signals for human review. "
+            "It does not determine whether the video or voice is manipulated or AI-generated."
+        ),
+        "human_review_required": True,
+    }
+
     return {
         "media_type": "video",
+        "manipulation_triage": video_triage,
         "duration_seconds": round(duration, 2),
         "frames_sampled": len(samples),
         "frame_analysis": samples,
@@ -183,7 +277,7 @@ def analyze_video(video_path, image_forensics_fn):
             "large_visual_changes": scene_changes,
             "note": "These are sampling signals, not proof of frame insertion, editing or deepfake generation.",
         },
-        "audio": _audio_stream_info(video_path),
+        "audio": audio_info,
         "ai_generated_video_detection": {
             "status": "NOT_CONFIGURED",
             "message": "No validated deepfake video model or temporal identity model is configured.",

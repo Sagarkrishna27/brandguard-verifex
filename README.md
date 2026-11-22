@@ -6,7 +6,8 @@ BrandGuard is a React + Vite frontend and Python + FastAPI service for reviewing
 
 - Existing Tesseract OCR passes, multilingual selection, OCR region grouping and confidence presentation.
 - Claim analysis, critical-value review, disclaimer/QR/manipulation checks, risk alerts, website truth checks, Fake Review Analysis, Brand DNA and copy-improvement guidance.
-- Evidence matching for extracted claims, with missing/expired/questionable states. Text files are read as text and images are OCRed; PDF contents are not reliably extracted in this build. Matching does not establish authenticity or legal compliance.
+- Media-forensics triage reports face-region detection as `NOT_CONFIGURED` when the installed OpenCV build lacks its Haar API or cascade data; it does not treat face detection as deepfake detection.
+- Evidence matching for extracted claims, with missing, insufficient and human-review states. Text files are decoded as UTF-8, images are OCRed, and selectable PDF text is extracted with `pypdf` (up to 100 pages). Scanned PDFs without a text layer need OCR. Matching does not establish authenticity, sufficiency or legal compliance.
 - Sampled video-frame OCR and timestamped claim/disclaimer findings. Audio transcription is not configured, and brief text between sampled frames may be missed.
 - One-Upload Review starts the existing applicable image/video checks and collects their results in a local report. Unsupported external checks remain clearly marked unable to verify or skipped.
 - Trust Passport image hashes, QR generation and public read-only record verification. Public submissions are always `NEEDS REVIEW`; only a server-authorized reviewer can set an official outcome.
@@ -77,7 +78,15 @@ npm.cmd run build
 backend/venv/Scripts/python.exe -m compileall -q backend
 ```
 
-There is no automated test suite configured in `package.json` or `backend/`. The final verification report distinguishes direct browser/API checks from checks not performed.
+The frontend has lint and production-build checks. The backend test suite can be run with:
+
+```powershell
+Push-Location backend
+.\.venv\Scripts\python.exe -m pytest -q
+Pop-Location
+```
+
+Passing unit tests do not establish OCR accuracy, legal compliance or deepfake-detection performance. The final verification report distinguishes direct browser/API checks from checks not performed.
 
 ## Honest limitations
 
@@ -86,6 +95,8 @@ There is no automated test suite configured in `package.json` or `backend/`. The
 - Evidence matching does not prove document authenticity, scope, issuer, legal compliance or claim truth. PDF extraction is not supported reliably.
 - Price/discount and food/regulatory claims require authoritative comparison sources that are not configured in the demo.
 - Website truth checking is a text comparison, not proof that a claim is false. Private, loopback and reserved destinations are rejected.
+- Legal compliance screening currently uses keyword-based preliminary indicators; it is not a complete legal assessment or legal advice. Human review is required.
+- Autonomous Advertisement Investigation has a Tavily/Gemini integration for preliminary public-source research. Live provider operation has not been verified in the final test pass; search snippets and AI assessments are not proof. Human review is required.
 - Fake-review, manipulation, risk and completeness results are heuristic indicators for human review.
 - The poster output is locally composed and deterministic; no third-party generative AI is configured.
 - SQLite and uploaded report persistence depend on the selected host's durable storage. A free sleeping/ephemeral host is not suitable for durable Trust Passport/report records.
