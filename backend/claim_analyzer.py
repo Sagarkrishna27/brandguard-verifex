@@ -14,7 +14,7 @@ CLAIM_RULES = {
     "GUARANTEE": {
         "patterns": [
             r"\b(guaranteed|100%\s*results?|sure[- ]shot|risk[- ]free|money[- ]back)\b",
-            r"\b(we guarantee|will definitely|assured results?)\b",
+            r"\b(we guarantee|will definitely|assured results?|money\s+back)\b",
         ],
         "evidence": "Written guarantee terms, conditions, and proof supporting the promise.",
         "risk": "HIGH",
@@ -34,10 +34,19 @@ CLAIM_RULES = {
         "evidence": "Valid certificate, issuing body, scope, and expiry date.",
         "risk": "MEDIUM",
     },
+    "INGREDIENT": {
+        "patterns": [
+            r"\b(100%\s*)?(natural|organic)\s+ingredients?\b",
+            r"\b(made with|formulated with)\b.{0,60}\b(natural|organic)\b",
+        ],
+        "evidence": "Full ingredient list, formulation records, and relevant natural or organic certification where claimed.",
+        "risk": "MEDIUM",
+    },
     "MEDICAL": {
         "patterns": [
-            r"\b(cures?|heals?|treats?|prevents?|clinically proven|doctor recommended)\b",
+            r"\b(cures?|heals?|treats?|prevents?|clinically proven|clinically tested|dermatologist[- ]tested|doctor recommended)\b",
             r"\b(guaranteed weight loss|instant relief|no side effects)\b",
+            r"\b(reduces?|fades?|removes?)\b.{0,80}\bby\s+\d+(?:\.\d+)?\s*%",
         ],
         "evidence": "Appropriate clinical evidence, approvals, and substantiation.",
         "risk": "HIGH",
@@ -68,7 +77,7 @@ CLAIM_RULES = {
     },
     "TESTIMONIAL": {
         "patterns": [
-            r"\b(customer review|customer testimonial|real customer|trusted by \d+)\b",
+            r"\b(customer review|customer testimonial|real customer|trusted by (?:over\s+)?\d+)\b",
             r"\b(\d+ satisfied customers|users love us)\b",
         ],
         "evidence": "Authentic customer consent and records supporting the testimonial.",
@@ -119,7 +128,10 @@ NEGATION = re.compile(
 
 
 def split_into_sentences(text: str) -> List[str]:
-    parts = re.split(r"(?<=[.!?])\s+|\n+", text)
+    # Protect abbreviations such as "No. 1" before splitting sentences.
+    protected = re.sub(r"\bNo\.(?=\s*\d)", "No<NO_DOT>", text, flags=re.IGNORECASE)
+    parts = re.split(r"(?<=[.!?])\s+|\n+", protected)
+    parts = [part.replace("<NO_DOT>", ".") for part in parts]
     return [part.strip() for part in parts if part.strip()]
 
 
@@ -142,41 +154,49 @@ def analyze_claims(text: str) -> Dict:
         if QUESTION_START.search(sentence):
             continue
 
+        # Check comma/semicolon-separated claims independently.
+        segments = [
+            part.strip()
+            for part in re.split(r"[,;]", sentence)
+            if part.strip()
+        ]
+
         for category, rule in CLAIM_RULES.items():
-            matched = any(
-                re.search(pattern, sentence_lower, re.IGNORECASE)
-                for pattern in rule["patterns"]
-            )
+            matching_segments = [
+                segment for segment in segments
+                if any(
+                    re.search(pattern, segment, re.IGNORECASE)
+                    for pattern in rule["patterns"]
+                )
+            ]
 
-            if not matched:
-                continue
+            for claim_text in matching_segments:
+                # Keep negated statements under human review.
+                if NEGATION.search(sentence_lower):
+                    claims.append({
+                        "text": claim_text,
+                        "category": category,
+                        "risk_level": "REVIEW",
+                        "status": "CONTEXT_REVIEW_REQUIRED",
+                        "explanation": (
+                            "A claim-related phrase appears with negation. "
+                            "Its full meaning needs human review."
+                        ),
+                        "evidence_required": rule["evidence"],
+                    })
+                    continue
 
-            # A negation needs context review instead of automatic classification.
-            if NEGATION.search(sentence_lower):
                 claims.append({
-                    "text": sentence,
+                    "text": claim_text,
                     "category": category,
-                    "risk_level": "REVIEW",
-                    "status": "CONTEXT_REVIEW_REQUIRED",
+                    "risk_level": rule["risk"],
+                    "status": "EVIDENCE_REQUIRED",
                     "explanation": (
-                        "A claim-related phrase appears with negation. "
-                        "Its full meaning needs human review."
+                        f"This statement may make a {category.lower().replace('_', ' ')} "
+                        "advertising claim. Supporting evidence should be checked."
                     ),
                     "evidence_required": rule["evidence"],
                 })
-                continue
-
-            claims.append({
-                "text": sentence,
-                "category": category,
-                "risk_level": rule["risk"],
-                "status": "EVIDENCE_REQUIRED",
-                "explanation": (
-                    f"This statement may make a {category.lower().replace('_', ' ')} "
-                    "advertising claim. Supporting evidence should be checked."
-                ),
-                "evidence_required": rule["evidence"],
-            })
 
     return {
         "success": True,

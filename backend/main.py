@@ -1,11 +1,13 @@
 import io
 import os
+from dotenv import load_dotenv
 import re
 import cv2
 import shutil
 import tempfile
 from datetime import datetime, timezone
 from claim_analyzer import analyze_claims
+from ad_investigation import investigate_advertisement
 from collections import defaultdict
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
@@ -24,6 +26,8 @@ except Exception:
 # --------------------------------------------------
 # CONFIGURATION
 # --------------------------------------------------
+
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 VERSION = "3.0.0"
 
@@ -1010,6 +1014,18 @@ async def analyze_advertisement_claims(payload: dict):
     return analyze_claims(text)
 
 # --------------------------------------------------
+
+@app.post("/api/investigate-claims")
+async def investigate_advertisement_claims(payload: dict):
+    text = payload.get("text", "")
+
+    if not isinstance(text, str) or not text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Advertisement text is required."
+        )
+
+    return investigate_advertisement(text)
 # FEATURES 3-11 ENDPOINTS (brand_features.py)
 # --------------------------------------------------
 
@@ -1113,6 +1129,50 @@ async def manipulation_check_endpoint(file: UploadFile = File(...)):
     return detect_manipulation(image)
 
 
+@app.post("/api/media-forensics")
+async def media_forensics_endpoint(file: UploadFile = File(...)):
+    """Explainable image/video forensics; no unsupported deepfake verdicts."""
+    content_type = (file.content_type or "").lower()
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded media is empty.")
+
+    from media_forensics import (
+        MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, analyze_image, analyze_video,
+    )
+
+    if content_type.startswith("image/"):
+        if len(content) > MAX_IMAGE_BYTES:
+            raise HTTPException(status_code=413, detail="Image must be below 15 MB.")
+        try:
+            image = Image.open(io.BytesIO(content))
+            image.load()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Uploaded image could not be decoded.")
+        return analyze_image(image, detect_manipulation)
+
+    if content_type.startswith("video/"):
+        if len(content) > MAX_VIDEO_BYTES:
+            raise HTTPException(status_code=413, detail="Video must be below 200 MB.")
+        suffix = os.path.splitext(file.filename or "upload.mp4")[1] or ".mp4"
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp:
+                temp.write(content)
+                temp_path = temp.name
+            return analyze_video(temp_path, detect_manipulation)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error))
+        finally:
+            if temp_path:
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
+
+    raise HTTPException(status_code=400, detail="Upload an image or video file.")
+
+
 @app.post("/api/risk-alert")
 async def risk_alert_endpoint(payload: dict):
     """Feature 10: aggregates all signals into one explainable alert."""
@@ -1192,23 +1252,67 @@ def _verify_evidence(claims, evidence):
         words = {word.lower() for word in re.findall(r"[a-zA-Z]{4,}", claim_text)}
         matches = []
         expired = []
+        strong_match = False
         for item in evidence:
             evidence_words = {word.lower() for word in re.findall(r"[a-zA-Z]{4,}", item["text"])}
             overlap = len(words & evidence_words)
             if overlap >= max(1, min(3, len(words) // 5)) or claim.get("category", "").lower().replace("_", " ") in item["text"].lower():
                 expiry = _evidence_expiry(item["text"])
                 if expiry and expiry < now: expired.append(item["name"])
-                else: matches.append(item["name"])
+                else:
+                    matches.append(item["name"])
+                    strong_match = strong_match or overlap >= 3
         if expired and not matches:
-            status, explanation = "EXPIRED", "The closest supporting document contains an expiry date in the past. Obtain a current certificate or document."
+            status, explanation = "REVIEW_REQUIRED", "A matching document appears to contain a past date. Confirm whether it is an expiry date and obtain current evidence if needed."
         elif matches:
-            status = "SUPPORTED" if any(len(words & {word.lower() for word in re.findall(r"[a-zA-Z]{4,}", item["text"])}) >= 3 for item in evidence) else "QUESTIONABLE"
-            explanation = "The supplied evidence contains matching wording. Confirm authenticity, scope, issuer, and exact advertised wording before approval." if status == "SUPPORTED" else "A document overlaps with the claim, but automated matching cannot validate authenticity, scope, issuer, or the exact advertised wording. Human review is required."
+            status = "UNDER_REVIEW" if strong_match else "INSUFFICIENT"
+            explanation = "Text overlaps with this claim. Automated matching does not validate authenticity, scope, issuer, or whether the document substantiates the advertised wording. Human review is required."
+        elif any(item.get("extraction_status") not in {None, "COMPLETED"} for item in evidence):
+            status, explanation = "INSUFFICIENT", "A document was supplied, but its text could not be reliably extracted for matching. Review it manually or provide a readable copy."
         else:
             status, explanation = "MISSING", "No supplied document matched this claim. The claim remains unsupported until evidence is provided."
         verified.append({"id": f"claim-{index}", "claim": claim_text, "category": claim.get("category"), "status": status, "risk_level": claim.get("risk_level"), "explanation": explanation, "matched_evidence": matches + expired, "evidence_required": claim.get("evidence_required")})
-    flagged = [item for item in verified if item["status"] != "SUPPORTED"]
-    return {"success": True, "claims": verified, "summary": {"claim_count": len(verified), "supported_count": len(verified) - len(flagged), "flagged_count": len(flagged), "review_required": bool(flagged), "evidence_count": len(evidence)}, "note": "Evidence matching is a review aid. It does not prove authenticity, legal compliance, or truth."}
+    status_counts = {status: sum(item["status"] == status for item in verified) for status in ("MISSING", "UNDER_REVIEW", "INSUFFICIENT", "REVIEW_REQUIRED")}
+    return {"success": True, "claims": verified, "documents": [{"name": item["name"], "extraction_status": item.get("extraction_status", "COMPLETED"), "message": item.get("message", "Text extracted.")} for item in evidence], "summary": {"claim_count": len(verified), "supported_count": 0, "flagged_count": len(verified), "review_required": bool(verified), "evidence_count": len(evidence), **status_counts}, "note": "Text overlap is only a triage signal. No uploaded document is automatically treated as authentic or sufficient proof."}
+
+
+def _extract_evidence_document(name, content_type, content):
+    suffix = os.path.splitext(name)[1].lower()
+    if content_type == "application/pdf" or suffix == ".pdf":
+        try:
+            from pypdf import PdfReader
+        except ImportError:
+            return {"name": name, "text": "", "extraction_status": "NOT_CONFIGURED", "message": "PDF text extraction is not installed on this backend."}
+        try:
+            reader = PdfReader(io.BytesIO(content), strict=False)
+            if reader.is_encrypted:
+                return {"name": name, "text": "", "extraction_status": "UNAVAILABLE", "message": "Password-protected PDFs cannot be read."}
+            page_count = len(reader.pages)
+            text = "\n".join((page.extract_text() or "") for page in reader.pages[:100])
+            if not text.strip():
+                return {"name": name, "text": "", "extraction_status": "INSUFFICIENT", "message": "No selectable text was extracted; scanned PDFs need OCR before review."}
+            status = "INSUFFICIENT" if page_count > 100 else "COMPLETED"
+            message = "Only the first 100 pages were extracted." if page_count > 100 else "PDF text extracted; document authenticity is not checked."
+            return {"name": name, "text": text[:1_000_000], "extraction_status": status, "message": message}
+        except Exception:
+            return {"name": name, "text": "", "extraction_status": "FAILED", "message": "The PDF could not be parsed. Check that it is readable and not damaged."}
+
+    if content_type.startswith("image/"):
+        try:
+            image = Image.open(io.BytesIO(content)).convert("RGB")
+            text = pytesseract.image_to_string(image, timeout=60)
+            return {"name": name, "text": text, "extraction_status": "COMPLETED" if text.strip() else "INSUFFICIENT", "message": "Image text extracted with OCR; recognition may be incomplete."}
+        except Exception:
+            return {"name": name, "text": "", "extraction_status": "FAILED", "message": "The image could not be read by OCR."}
+
+    if content_type.startswith("text/") or suffix in {".txt", ".md", ".json", ".csv"}:
+        try:
+            text = content.decode("utf-8-sig")
+            return {"name": name, "text": text, "extraction_status": "COMPLETED" if text.strip() else "INSUFFICIENT", "message": "Text decoded as UTF-8."}
+        except UnicodeDecodeError:
+            return {"name": name, "text": "", "extraction_status": "FAILED", "message": "Text files must use UTF-8 encoding."}
+
+    return {"name": name, "text": "", "extraction_status": "UNAVAILABLE", "message": "This file type is not supported for text extraction."}
 
 
 @app.post("/api/verify-claims-evidence")
@@ -1220,15 +1324,12 @@ async def verify_claims_evidence(text: str = Form(...), evidence_files: list[Upl
     for uploaded in evidence_files:
         content = await uploaded.read()
         if len(content) > MAX_FILE_SIZE:
-            raise HTTPException(status_code=413, detail=f"Evidence file {uploaded.filename} exceeds 15 MB.")
-        extracted = ""
-        if uploaded.content_type and uploaded.content_type.startswith("image/"):
-            try: extracted = pytesseract.image_to_string(Image.open(io.BytesIO(content)).convert("RGB"), timeout=60)
-            except RuntimeError: extracted = ""
-            except Exception: extracted = ""
-        else:
-            extracted = content.decode("utf-8", errors="ignore")
-        evidence.append({"name": uploaded.filename or "unnamed evidence", "text": extracted})
+            raise HTTPException(status_code=413, detail=f"Evidence file {uploaded.filename} exceeds {MAX_FILE_SIZE // (1024 * 1024)} MB.")
+        evidence.append(_extract_evidence_document(
+            uploaded.filename or "unnamed evidence",
+            uploaded.content_type or "",
+            content,
+        ))
     return _verify_evidence(analysis.get("claims", []), evidence)
 
 

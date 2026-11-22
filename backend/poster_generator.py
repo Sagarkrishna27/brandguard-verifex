@@ -248,13 +248,13 @@ def compose_poster(brief):
 
 def generate_poster(brief):
     """Entry point. Reports honestly whether AI enrichment was used."""
-    used_ai = bool(AI_KEY)
+    used_ai = False
     result = compose_poster(brief)
     result["ai_enrichment_used"] = used_ai
     result["generator"] = (
     "BrandGuard offline composition engine (deterministic)"
     if not used_ai else
-    "BrandGuard composition engine with external AI enrichment"
+    "BrandGuard offline composition engine (deterministic)"
     )
     result["disclaimer"] = (
     "The generator preserves your exact wording. It does not invent "

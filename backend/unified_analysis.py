@@ -89,11 +89,13 @@ IMAGE_MODULES = [
     ("disclaimer", "Disclaimer Detection"),
     ("qr", "QR Detection"),
     ("manipulation", "Image Manipulation Detection"),
+    ("media_forensics", "Multimodal Media Forensics"),
     ("evaluation", "Advertisement Evaluation"),
     ("risk", "Risk Alerts"),
     ("price_discount", "Price and Discount Verification"),
     ("website_truth", "Website Truth Checker"),
     ("food_verification", "Food Advertisement Verification"),
+    ("legal_compliance", "Legal Compliance Intelligence"),
     ("improvement", "Advertisement Improvement Assistant"),
     ("completeness", "Advertisement Completeness Review"),
     ("improved_poster", "Improved Advertisement Output"),
@@ -110,11 +112,13 @@ VIDEO_MODULES = [
     ("disclaimer", "Disclaimer Detection"),
     ("qr", "QR Detection in Sampled Frames"),
     ("manipulation", "Frame Manipulation Checks"),
+    ("media_forensics", "Video and Audio Forensics"),
     ("evaluation", "Advertisement Evaluation"),
     ("risk", "Risk Alerts"),
     ("price_discount", "Price and Discount Verification"),
     ("website_truth", "Website Truth Checker"),
     ("food_verification", "Food Advertisement Verification"),
+    ("legal_compliance", "Legal Compliance Intelligence"),
     ("improvement", "Advertisement Improvement Assistant"),
     ("completeness", "Advertisement Completeness Review"),
     ("improved_poster", "Improved Summary Poster"),
@@ -221,6 +225,113 @@ def _food_check(text):
         "Food-related wording was detected, but no official FSSAI source, lab report, sample details, or accreditation record was supplied for this automated run.",
         {"legal_compliance_checked": False, "human_review_required": True},
     )
+
+
+
+def _legal_compliance_check(text):
+    text = text or ""
+    findings = []
+
+    rules = [
+        {
+            "category": "SUPERIORITY",
+            "patterns": [r"\b(no\.?\s*1|number\s*one|best|leading|top[- ]rated|world'?s best)\b"],
+            "issue": "Superiority or ranking claim needs independent substantiation.",
+            "references": ["ASCI Code, Chapter I, Clause 1.1", "ASCI Code, Chapter I, Clause 1.4"],
+            "evidence": "Independent rankings, comparison methodology, award records, and date of evidence.",
+        },
+        {
+            "category": "QUANTIFIED_PERFORMANCE",
+            "patterns": [r"\b(?:reduces?|increases?|improves?|removes?|fades?|saves?)\b.{0,100}\b(?:by\s*)?\d+(?:\.\d+)?\s*%"],
+            "issue": "Quantified product-performance claim needs reliable supporting data.",
+            "references": ["ASCI Code, Chapter I, Clause 1.1", "ASCI Code, Chapter I, Clause 1.2"],
+            "evidence": "Product-specific test reports, sample size, methodology, results, and research source/date.",
+        },
+        {
+            "category": "SCIENTIFIC_OR_MEDICAL",
+            "patterns": [r"\b(clinically proven|clinically tested|scientifically proven|dermatologist[- ]tested|doctor recommended|cures?|heals?|treats?|prevents?)\b"],
+            "issue": "Scientific, clinical, medical, or expert-related claim needs appropriate substantiation.",
+            "references": ["ASCI Code, Chapter I, Clauses 1.1 and 1.2", "CCPA Misleading Advertisements Guidelines, 2022"],
+            "evidence": "Relevant clinical or scientific reports, study design, product identity, expert credentials, and applicable approvals.",
+        },
+        {
+            "category": "TESTIMONIAL_OR_ENDORSEMENT",
+            "patterns": [r"\b(trusted by|recommended by|endorsed by|loved by)\b.{0,70}\b\d[\d,.]*\s*(?:million|lakh|crore|customers?|users?|people)?", r"\b(customer testimonial|customer review|real customer|celebrity endorsed)\b"],
+            "issue": "Customer or endorsement claim needs authentic records and appropriate due diligence.",
+            "references": ["ASCI Code, Chapter I, Clauses 1.1 and 1.3", "CCPA Misleading Advertisements Guidelines, 2022, Clause 13"],
+            "evidence": "Authentic customer records, consent, representative methodology, and endorser's genuine and current experience.",
+        },
+        {
+            "category": "NATURAL_OR_ORGANIC",
+            "patterns": [r"\b(100%\s*)?(natural|organic)\s+ingredients?\b", r"\b(organic|natural|chemical[- ]free|toxin[- ]free)\s+(?:product|formula|skincare|ingredients?)\b"],
+            "issue": "Natural or organic positioning needs evidence that supports the specific wording and scope.",
+            "references": ["ASCI Code, Chapter I, Clauses 1.1 and 1.4", "CCPA Guidelines for Prevention and Regulation of Greenwashing or Misleading Environmental Claims, 2024"],
+            "evidence": "Complete ingredient list, formulation records, relevant certifications, and substantiation for the exact claim.",
+        },
+        {
+            "category": "GUARANTEE_OR_REFUND",
+            "patterns": [r"\b(guaranteed|guarantee|money[- ]back|risk[- ]free|assured results?)\b"],
+            "issue": "Guarantee or refund promise needs clear terms and must not create a misleading impression.",
+            "references": ["ASCI Code, Chapter I, Clauses 1.1 and 1.4", "CCPA Misleading Advertisements Guidelines, 2022"],
+            "evidence": "Written guarantee/refund policy, eligibility, exclusions, time limits, and conditions.",
+        },
+        {
+            "category": "FREE_OR_PRICE_CLAIM",
+            "patterns": [r"\b(free|zero cost|100%\s*free|no extra cost)\b"],
+            "issue": "Free or zero-cost wording needs checking for conditions, charges, and qualifications.",
+            "references": ["ASCI Code, Chapter I, Clause 1.4", "CCPA Misleading Advertisements Guidelines, 2022"],
+            "evidence": "Full offer terms, applicable charges, eligibility, and price history where relevant.",
+        },
+        {
+            "category": "URGENCY_OR_SCARCITY",
+            "patterns": [r"\b(limited offer|only today|last chance|limited stock|only \d+ left|ends today|selling fast)\b"],
+            "issue": "Urgency or availability statement should reflect actual offer dates and stock.",
+            "references": ["ASCI Code, Chapter I, Clauses 1.1 and 1.4", "CCPA Misleading Advertisements Guidelines, 2022"],
+            "evidence": "Dated offer terms, inventory records, and campaign validity.",
+        },
+    ]
+
+    for rule in rules:
+        matched = []
+        for pattern in rule["patterns"]:
+            for match in re.finditer(pattern, text, re.IGNORECASE):
+                value = match.group(0).strip()
+                if value and value not in matched:
+                    matched.append(value)
+
+        for value in matched:
+            findings.append({
+                "category": rule["category"],
+                "matched_text": value,
+                "issue": rule["issue"],
+                "references": rule["references"],
+                "evidence_to_request": rule["evidence"],
+                "status": "HUMAN_REVIEW_REQUIRED",
+            })
+
+    return {
+        "_status": "COMPLETED",
+        "_message": "Expanded preliminary advertising compliance screening completed. Findings are indicators for review, not legal conclusions.",
+        "findings": findings,
+        "finding_count": len(findings),
+        "human_review_required": True,
+        "legal_conclusion": False,
+        "screening_method": "Rule-based keyword and phrase screening",
+        "sources": [
+            {
+                "name": "ASCI Code",
+                "url": "https://www.ascionline.in/the-asci-code/"
+            },
+            {
+                "name": "CCPA Misleading Advertisements Guidelines, 2022",
+                "url": "https://thc.nic.in/Central%20Governmental%20Schemes/Guidelines%20for%20Prevention%20of%20Misleading%20Advertisements%20%26%20Endorsements%20for%20Mislaeding%20Advertisements%2C%202022.pdf"
+            },
+            {
+                "name": "CCPA Greenwashing Guidelines, 2024",
+                "url": "https://ccpa.doca.gov.in/guidelines"
+            }
+        ]
+    }
 
 
 def _price_check(text):
@@ -376,12 +487,16 @@ def _run_image_job(job_id, row):
             _run_module(job_id, module_id, lambda: _skip("Depends on successful OCR."))
         claims = []
 
+    from media_forensics import analyze_image as run_media_forensics
+
     parallel = {
+        "media_forensics": lambda: run_media_forensics(image, bg.detect_manipulation),
         "disclaimer": lambda: bg.detect_hidden_disclaimer(image),
         "qr": lambda: bg.detect_embedded_qr(image),
         "manipulation": lambda: bg.detect_manipulation(image),
         "claim_evidence": lambda: _evidence_result(claims)[0],
         "proof_claim": lambda: _evidence_result(claims)[1],
+        "legal_compliance": lambda: _legal_compliance_check(text),
         "price_discount": lambda: _price_check(text),
         "website_truth": lambda: _website_check(text),
         "food_verification": lambda: _food_check(text),
@@ -421,6 +536,12 @@ def _run_video_job(job_id, row):
     video_data = timeline.get("result") if timeline and timeline.get("status") == "COMPLETED" else None
     frames = (video_data or {}).get("sampled_frames", [])
     if video_data:
+        from media_forensics import analyze_video as run_video_forensics
+        _run_module(
+            job_id,
+            "media_forensics",
+            lambda: run_video_forensics(row["temp_path"], bg.detect_manipulation),
+        )
         frame_text = "\n".join(frame.get("text", "") for frame in frames)
         frame_claims = []
         seen = set()
@@ -454,6 +575,7 @@ def _run_video_job(job_id, row):
         _run_module(job_id, "price_discount", lambda: _price_check(frame_text))
         _run_module(job_id, "website_truth", lambda: _website_check(website_text, next((q for q in qr_findings if q.get("decoded_value")), None)))
         _run_module(job_id, "food_verification", lambda: _food_check(frame_text))
+        _run_module(job_id, "legal_compliance", lambda: _legal_compliance_check(frame_text))
         _run_module(job_id, "improvement", lambda: bg.suggest_improvements(frame_text) if frame_text.strip() else _skip("No readable sampled-frame text."))
         _run_module(job_id, "completeness", lambda: _completeness_check(frame_text))
         risk_claims = all_claims
@@ -466,7 +588,7 @@ def _run_video_job(job_id, row):
                                                    "note": "Frame-sampled review only; no compliance verdict."})
         _run_module(job_id, "improved_poster", lambda: _skip("A summary poster needs human selection of verified wording and is not generated automatically from uncertain frame OCR."))
         return {"video": video_data, "text": frame_text, "claims": risk_claims}
-    for module_id in ("frame_ocr_claims", "ocr_regions", "critical_values", "claim_evidence", "proof_claim", "disclaimer", "qr", "manipulation", "evaluation", "risk", "price_discount", "website_truth", "food_verification", "improvement", "completeness", "improved_poster"):
+    for module_id in ("frame_ocr_claims", "ocr_regions", "critical_values", "claim_evidence", "proof_claim", "disclaimer", "qr", "manipulation", "media_forensics", "evaluation", "risk", "price_discount", "website_truth", "food_verification", "legal_compliance", "improvement", "completeness", "improved_poster"):
         _run_module(job_id, module_id, lambda: _skip("Depends on successful video decoding and frame sampling."))
     return {"video": None, "text": "", "claims": []}
 

@@ -9,3 +9,4 @@ beautifulsoup4==4.15.0
 numpy==2.5.5
 opencv-python-headless==5.1.0.95
 python-multipart==0.0.20
+python-dotenv==1.2.4

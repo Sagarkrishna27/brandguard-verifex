@@ -1,11 +1,13 @@
 import io
 import os
+from dotenv import load_dotenv
 import re
 import cv2
 import shutil
 import tempfile
 from datetime import datetime, timezone
 from claim_analyzer import analyze_claims
+from backend.ad_investigation import investigate_advertisement
 from collections import defaultdict
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
@@ -25,6 +27,7 @@ except Exception:
 # CONFIGURATION
 # --------------------------------------------------
 
+load_dotenv(os.path.join(os.path.dirname(__file__), "backend", ".env"))
 VERSION = "3.0.0"
 
 TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
@@ -972,6 +975,13 @@ async def perform_ocr(
 
 
 # --------------------------------------------------
+@app.post("/api/investigate-claims")
+async def investigate_advertisement_claims(payload: dict):
+    text = payload.get("text", "")
+    if not isinstance(text, str) or not text.strip():
+        raise HTTPException(status_code=400, detail="Advertisement text is required.")
+    return investigate_advertisement(text)
+
 # CLAIM ANALYSIS ENDPOINT
 # --------------------------------------------------
 
@@ -1234,7 +1244,7 @@ async def analyze_video(file: UploadFile = File(...), include_frame_checks: bool
         fps = capture.get(cv2.CAP_PROP_FPS) or 25
         frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
         duration = frame_count / fps if frame_count else 0
-        sample_count = min(24, max(1, int(duration // 2) + 1))
+        sample_count = min(48, max(1, int(duration) + 1))
         findings = []; analyzed = 0; seen = set(); sampled_frames = []
         last_frame_time = max(0.0, duration - (1.0 / fps))
         for i in range(sample_count):
@@ -1246,7 +1256,21 @@ async def analyze_video(file: UploadFile = File(...), include_frame_checks: bool
             if not ok: continue
             analyzed += 1
             frame_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            text = pytesseract.image_to_string(frame_image).strip()
+            original_text = pytesseract.image_to_string(frame_image).strip()
+            gray = frame_image.convert("L")
+            enhanced = ImageOps.autocontrast(
+                gray.resize(
+                    (gray.width * 2, gray.height * 2),
+                    Image.Resampling.LANCZOS,
+                )
+            )
+            enhanced_text = pytesseract.image_to_string(
+                enhanced, config="--psm 11"
+            ).strip()
+            text = "\n".join(
+                part for part in dict.fromkeys((original_text, enhanced_text))
+                if part
+            ).strip()
             claim_data = analyze_claims(text)
             frame_record = {
                 "timestamp_seconds": round(seconds, 2),
@@ -1269,6 +1293,13 @@ async def analyze_video(file: UploadFile = File(...), include_frame_checks: bool
         capture.release()
         audio_present = False
         ffprobe = shutil.which("ffprobe")
+        if not ffprobe:
+            project_ffprobe = os.path.join(
+                os.path.dirname(__file__),
+                "tools", "ffmpeg", "bin", "ffprobe.exe",
+            )
+            if os.path.isfile(project_ffprobe):
+                ffprobe = project_ffprobe
         audio_status = "NOT TESTED"; audio_explanation = "Audio transcription was not tested because ffprobe is unavailable. No audio claim can be confirmed from this result."
         if ffprobe:
             import subprocess
@@ -1276,9 +1307,16 @@ async def analyze_video(file: UploadFile = File(...), include_frame_checks: bool
             audio_present = bool(probe.stdout.strip())
             audio_status = "PRESENT — TRANSCRIPTION NOT CONFIGURED" if audio_present else "NO AUDIO STREAM DETECTED"
             audio_explanation = "The file contains an audio stream, but speech transcription is not configured in this build." if audio_present else "ffprobe found no audio stream in the uploaded file."
-        return {"success": True, "status": "ANALYZED WITH HUMAN REVIEW REQUIRED", "duration_seconds": round(duration, 2), "frames_analyzed": analyzed, "findings": findings, "sampled_frames": sampled_frames, "audio": {"status": audio_status, "present": audio_present, "explanation": audio_explanation}, "note": "Frame sampling can miss brief text. Audio is not transcribed unless an approved speech-to-text service is configured."}
+        from backend.media_forensics import analyze_video as analyze_video_forensics
+
+        media_forensics_report = analyze_video_forensics(
+            temp_path,
+            detect_manipulation,
+        )
+
+        return {"success": True, "status": "ANALYZED WITH HUMAN REVIEW REQUIRED", "duration_seconds": round(duration, 2), "frames_analyzed": analyzed, "findings": findings, "sampled_frames": sampled_frames, "media_forensics": media_forensics_report, "audio": {"status": audio_status, "present": audio_present, "explanation": audio_explanation}, "note": "Frame sampling can miss brief text. Audio is not transcribed unless an approved speech-to-text service is configured."}
     finally:
-        if temp_path: 
+        if temp_path:
             try: os.unlink(temp_path)
             except OSError: pass
 
