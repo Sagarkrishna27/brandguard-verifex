@@ -114,3 +114,14 @@ The earlier statement that no Git commit or push was created is superseded. The 
 - Public QR: external scanning and persistence across a backend restart have not been tested in this audit.
 - Known implementation limits remain: AI deepfake and voice-clone models are `NOT_CONFIGURED`; audio transcription is not configured; video OCR samples frames; legal screening is preliminary keyword-based screening; the poster generator is deterministic local composition; public-source investigation still requires a live-provider test. Do not describe these as fully automated/verified AI detection or legal certification.
 - CodeZen eligibility: the organiser's published rules state that every participant files their own entry for each round, with their own role and contribution. The user's earlier report that a particular form said the team leader submits once may refer to a separate team-level form. Treat the participant-specific entry requirement as unresolved until each member's Round 3 entry is confirmed in the organiser portal.
+
+
+## Deployment routing follow-up — 2026-11-22
+
+- Inspected the public frontend: `https://brandguard-seven.vercel.app/` renders the BrandGuard dashboard.
+- The public `/api/health` endpoint returned HTTP 500 at the time of this check. This means the production API is not yet verified, even though the frontend loads.
+- Inspected the repository's Vercel Services configuration. Corrected the service rewrite destination format in `vercel.json` to the documented `{"service":"backend"}` and `{"service":"frontend"}` destination objects. The GitHub update was pushed as commit `565cb010fc62a509557af0c72d3196fb122397ee`.
+- The Vercel status check for that commit was still `pending` at the time of this report update. The corrected deployment has not yet been confirmed live.
+- Vercel Services documentation states that the Vercel project framework must be set to **Services** when the `services` configuration is used. The project dashboard setting could not be inspected in this audit, so this remains a deployment configuration check.
+- Re-test `https://brandguard-seven.vercel.app/api/health` after the Vercel deployment completes. If it still returns 500, inspect Vercel build/runtime logs and confirm the project framework setting, backend service root/entrypoint, Python dependency installation, and production environment variables.
+- Do not claim the public backend, live Tavily/Gemini investigation, production CORS, persistent storage, or external QR verification as tested until those checks pass.
