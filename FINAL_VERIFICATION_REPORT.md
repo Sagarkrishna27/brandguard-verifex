@@ -1,16 +1,16 @@
 # BrandGuard final verification report
 
-Verification date: 2026-11-18. Tests used the existing React/Vite frontend and FastAPI backend locally, with synthetic test inputs generated outside the project. No hosting account was connected and no public deployment was performed.
+Final verification update: 2026-11-22. The Round 3 changes are merged into `main` and pushed to GitHub (push output: `main -> main`, commit `643e02a`). The merged backend suite passes 29 tests and the frontend Vite production build passes. This report preserves the earlier 2026-11-18 local feature audit below; deployment status is updated in the final audit section. The public Vercel frontend was opened and its dashboard rendered, but the exact Render API URL and public backend health could not be independently verified.
 
 ## Build and runtime checks
 
 | Check | Status | Observed result |
 |---|---|---|
 | Frontend lint | PASS | `npm.cmd run lint` completed with exit code 0. |
-| Frontend production build | PASS | `npm.cmd run build` completed; Vite 8.3.8 produced `dist/`. |
+| Frontend production build | PASS (final main-branch run, 2026-11-22) | `npm run build` completed; Vite 8.3.8 produced `dist/` (293.72 kB JS, 19.26 kB CSS before gzip). |
 | Backend compilation | PASS | `backend/venv/Scripts/python.exe -m compileall -q .` completed with exit code 0. |
 | Backend startup and health | PASS | FastAPI returned `healthy`, API version `3.0.0`, Tesseract `5.4.0.20240606`; 14 configured language codes plus `osd` were installed. |
-| Backend automated test suite | PASS (Round 3 update) | `backend/.venv/Scripts/python.exe -m pytest -q`: 19 passed; one Starlette/httpx deprecation warning. |
+| Backend automated test suite | PASS (final main-branch run, 2026-11-22) | `python -m pytest backend\\tests -q`: 29 passed; one Starlette/httpx deprecation warning. The earlier 19-test result is historical. |
 | Missing upload handling | PASS | `POST /api/unified-analysis` without a file returned HTTP 422; the UI keeps Analyze disabled until a file is selected. |
 | Local CORS | PASS | Preflight from the configured local Vite origin was accepted. Production origins were not tested. |
 | Browser console/API errors | PASS | No console errors or failed requests were observed during the local page sweep and tested workflows. |
@@ -40,7 +40,7 @@ Verification date: 2026-11-18. Tests used the existing React/Vite frontend and F
 | Trust Passport reviewer security | PASS | Reviewer listing and update without a token returned HTTP 401. A temporary server-only test token authorized the protected local reviewer endpoint. No token was placed in the frontend or ZIP. |
 | Settings | PASS | Settings page and local preference controls rendered; preferences are browser-local and do not grant reviewer authorization. |
 | Public analysis report page/API | PASS (local only) | A completed local report loaded at `/#/verify/<id>` after a fresh page load. The public response omitted raw OCR; it correctly states that cryptographic report-integrity verification is not implemented. |
-| Public HTTPS deployment and external QR verification | NOT TESTED | No public URL/domain or deployment authorization was provided. QR issuance was therefore shown as not configured; local links are not public verification. |
+| Public HTTPS deployment and external QR verification | PARTIAL / NOT TESTED | `https://brandguard-seven.vercel.app/` publicly loads and renders the dashboard. The exact Render API URL is not recorded in the repository. A same-origin `/api/health` probe returned HTTP 500 and is not proof of the Render API status. End-to-end public API workflows and external QR scanning remain NOT TESTED. |
 
 ## Responsive and security checks
 
@@ -66,7 +66,7 @@ Verification date: 2026-11-18. Tests used the existing React/Vite frontend and F
 - Audio transcription, exhaustive per-frame video OCR, and long-video load/performance.
 - PDF certificate text extraction, certificate authenticity, legal/FSSAI compliance, and official price/reference-price comparison.
 - Accuracy of manipulation/risk heuristics against labeled ground truth and duplicate-review detection.
-- Public deployment, HTTPS access from another device, external QR scanning, production CORS, persistent storage after host restart, backups, load testing, penetration testing and security certification.
+- Production Render API health, end-to-end public frontend-to-backend workflows, external QR scanning, production CORS, persistent storage after host restart, backups, load testing, penetration testing and security certification.
 - Kannada, Hindi and mixed-script OCR were not tested against a representative labelled image set, so accuracy remains unverified.
 
 ## Round 3 update — 2026-11-21
@@ -102,3 +102,15 @@ Verification date: 2026-11-18. Tests used the existing React/Vite frontend and F
 Planned archive path: `release/brandguard-hackathon-submission-20261118-194244.zip`. It includes the React/Vite source, FastAPI source, `public/` assets, dependency manifests, env examples, README, deployment guide and this report. It excludes `node_modules`, virtual environments, caches, `.env` secrets, databases, build output, release archives and temporary fixtures. Archive integrity and extraction are checked after creation before handoff.
 
 The workspace is not a Git repository (`.git` is absent), so no commit or push was created. The ZIP is a clean source handoff; no public GitHub upload was performed.
+
+
+## Final audit update — 2026-11-22
+
+- GitHub: `round3-development` was merged into `main`; the merge completed without conflicts. The `main` push succeeded (`2987aff..643e02a main -> main`). The user's local `git status -sb` showed only untracked local recovery backups and `tools/`; these were not staged or pushed.
+- Backend: after merging into `main`, `python -m pytest backend\\tests -q` completed with **29 passed, 1 warning**. The warning is a Starlette/httpx deprecation notice, not a test failure.
+- Frontend: after merging into `main`, `npm run build` completed successfully with Vite 8.3.8.
+- Public frontend: `https://brandguard-seven.vercel.app/` returned the BrandGuard dashboard content on 2026-11-22.
+- Backend deployment: earlier project history records a Render backend deployment as user-reported, but the exact Render service URL is not available in the repository or recovered project context. A request to `https://brandguard-seven.vercel.app/api/health` returned HTTP 500; this is only a same-origin probe and does not establish the status of a separately hosted Render API. Obtain the exact Render URL from the Render dashboard and test `https://<render-service>/api/health` before claiming backend deployment is verified.
+- Public QR: external scanning and persistence across a backend restart have not been tested in this audit.
+- Known implementation limits remain: AI deepfake and voice-clone models are `NOT_CONFIGURED`; audio transcription is not configured; video OCR samples frames; legal screening is preliminary keyword-based screening; the poster generator is deterministic local composition; public-source investigation still requires a live-provider test. Do not describe these as fully automated/verified AI detection or legal certification.
+- CodeZen eligibility: the organiser's published rules state that every participant files their own entry for each round, with their own role and contribution. The user's earlier report that a particular form said the team leader submits once may refer to a separate team-level form. Treat the participant-specific entry requirement as unresolved until each member's Round 3 entry is confirmed in the organiser portal.
