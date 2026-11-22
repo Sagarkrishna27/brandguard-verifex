@@ -1,10 +1,10 @@
 # BrandGuard deployment guide
 
-Status: preparation only. No hosting account was connected, no service was created, and no public deployment or external QR scan was performed.
+Status (2026-11-22): partial deployment verification. The public Vercel frontend https://brandguard-seven.vercel.app/ loads and renders the BrandGuard dashboard. Earlier project history records a Render backend deployment as user-reported, but the exact public API URL is not recorded in this repository and could not be independently recovered. A request to https://brandguard-seven.vercel.app/api/health returned HTTP 500; this is not a verified Render API health check. Do not mark backend health, end-to-end public workflows, or external QR verification as verified until the exact Render API URL is tested.
 
 ## Current release blockers
 
-1. There is no production API URL or domain yet. The frontend's `VITE_API_BASE_URL` is compiled into the Vite build, so it must be set before the production build.
+1. The exact production API URL is not documented in the repository. Confirm the Render service's public HTTPS URL and verify `/api/health`. The frontend's `VITE_API_BASE_URL` is compiled into the Vite build, so it must point to that API before a production rebuild.
 2. FastAPI requires Tesseract and language model files on the host; this repository does not provision those operating-system packages.
 3. Trust Passport and One-Upload reports use SQLite. The host must provide durable storage and the backend must set `BRANDGUARD_DATA_DIR` to that mount. Do not put real submissions on an ephemeral filesystem.
 4. Public QR links are only correct after both `BRANDGUARD_PUBLIC_URL` (backend API URL) and `BRANDGUARD_FRONTEND_URL` (frontend HTTPS URL) are configured and reachable.
@@ -32,7 +32,7 @@ Official provider references checked 2026-11-18: [Vercel Vite deployment](https:
    - `BRANDGUARD_REVIEWER_TOKEN` as a secret in the hosting dashboard.
 3. Confirm the backend health endpoint and supported OCR languages before building the frontend.
 4. Build the static frontend with `VITE_API_BASE_URL` set to the public API origin. Never put reviewer tokens or private API keys in a `VITE_*` variable.
-5. Publish the frontend only after the API is reachable and CORS is configured. Publishing/deployment is outside this verification and requires your approval.
+5. The frontend is already publicly reachable on Vercel. Rebuild/redeploy it only after confirming the Render API URL, backend health and CORS. Do not replace a working deployment with a localhost-configured build.
 
 ## Post-deployment acceptance checks
 
@@ -48,4 +48,4 @@ Run these from a device/network outside the hosting environment; localhost and L
 - Check the unified report QR opens `/#/verify/<report-id>` and the report endpoint returns only the intended public fields.
 - Re-check CORS, redirect/private-address rejection in website truth checking, logs, storage persistence after restart, and backup/restore behavior.
 
-Until those external checks pass, report public deployment and live QR verification as `NOT TESTED`.
+Until the exact Render API URL passes the external health and workflow checks, report backend deployment health and end-to-end public operation as `NOT VERIFIED`; report external QR verification as `NOT TESTED`.
