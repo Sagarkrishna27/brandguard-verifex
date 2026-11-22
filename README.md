@@ -92,7 +92,7 @@ Passing unit tests do not establish OCR accuracy, legal compliance or deepfake-d
 
 - OCR may misread small, blurry, stylized or multilingual text; review extracted text and confidence.
 - Video analysis samples frames and can miss brief text between samples. Audio transcription is not configured.
-- Evidence matching does not prove document authenticity, scope, issuer, legal compliance or claim truth. PDF extraction is not supported reliably.
+- Evidence matching does not prove document authenticity, scope, issuer, legal compliance or claim truth. Selectable-text PDFs can be parsed with `pypdf` (bounded extraction); scanned PDFs without a text layer still require OCR, and extraction/layout accuracy is not guaranteed.
 - Price/discount and food/regulatory claims require authoritative comparison sources that are not configured in the demo.
 - Website truth checking is a text comparison, not proof that a claim is false. Private, loopback and reserved destinations are rejected.
 - Legal compliance screening currently uses keyword-based preliminary indicators; it is not a complete legal assessment or legal advice. Human review is required.
