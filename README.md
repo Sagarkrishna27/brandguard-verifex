@@ -56,7 +56,7 @@ For a LAN demo, set Vite's `--host 0.0.0.0`, run the backend with `--host 0.0.0.
 - `BRANDGUARD_DATA_DIR` selects where SQLite databases are stored. Use a durable mounted volume if records must survive service restarts.
 - Never commit `.env` files or expose backend secrets through `VITE_*` variables.
 
-Example files contain local defaults and placeholders only. Public deployment and public QR verification have not been tested.
+Example files contain local defaults and placeholders only. The public Vercel frontend at https://brandguard-seven.vercel.app/ was opened and its BrandGuard dashboard rendered on 2026-11-22. The production backend API origin could not be confirmed from this repository. A probe of the frontend origin at /api/health returned HTTP 500; this is not a verified Render API health check. Public QR verification remains NOT TESTED.
 
 ## API highlights
 
@@ -100,4 +100,4 @@ Passing unit tests do not establish OCR accuracy, legal compliance or deepfake-d
 - Fake-review, manipulation, risk and completeness results are heuristic indicators for human review.
 - The poster output is locally composed and deterministic; no third-party generative AI is configured.
 - SQLite and uploaded report persistence depend on the selected host's durable storage. A free sleeping/ephemeral host is not suitable for durable Trust Passport/report records.
-- No public deployment, external QR scan, accessibility certification or production security certification has been completed.
+- The Vercel frontend is publicly reachable at https://brandguard-seven.vercel.app/. Production backend API health and end-to-end frontend-to-backend operation, external QR scanning, accessibility certification and production security certification remain unverified.
