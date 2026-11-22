@@ -73,7 +73,7 @@ Final verification update: 2026-11-22. The Round 3 changes are merged into `main
 
 - Reproduced both media-forensics test failures on Python 3.14.6 with the sole installed distribution `opencv-python==5.1.0.95`. `pip check` reported no dependency conflicts. This build exposes `cv2.data` but not `cv2.CascadeClassifier`, `cv2.objdetect`, or the Haar cascade XML file; the failure is an unavailable optional face-region capability, not a failure in the independent manipulation heuristic.
 - Updated `backend/media_forensics.py` to return `face_analysis.status = NOT_CONFIGURED` when the OpenCV classifier API or cascade data is absent, rather than aborting the whole image analysis.
-- Added a regression test covering that missing-capability path in `backend/tests/test_media_forensics.py`. The complete backend suite now passes: 19 passed.
+- Added a regression test covering that missing-capability path in `backend/tests/test_media_forensics.py`. At that earlier checkpoint, the backend suite passed 19 tests. The final merged `main` branch was subsequently re-tested on 2026-11-22 with 29 passed and one deprecation warning.
 - Added optional `pypdf`-based selectable-text extraction, bounded to 100 pages and 1 MB of extracted text. Scanned PDFs without a text layer remain insufficient; if `pypdf` is absent, extraction is `NOT_CONFIGURED`.
 - Changed evidence matching so text overlap can produce `UNDER_REVIEW` or `INSUFFICIENT`, never automatic `SUPPORTED`. Added tests for that behavior, unsupported PDF parsing, and invalid UTF-8.
 - Corrected `README.md` and `backend/TESTING.md` to document the actual evidence extraction and backend test behavior.
@@ -99,9 +99,9 @@ Final verification update: 2026-11-22. The Round 3 changes are merged into `main
 
 ## Submission archive
 
-Planned archive path: `release/brandguard-hackathon-submission-20261118-194244.zip`. It includes the React/Vite source, FastAPI source, `public/` assets, dependency manifests, env examples, README, deployment guide and this report. It excludes `node_modules`, virtual environments, caches, `.env` secrets, databases, build output, release archives and temporary fixtures. Archive integrity and extraction are checked after creation before handoff.
+Historical archive note: `release/brandguard-hackathon-submission-20261118-194244.zip` was listed as a planned archive path in the earlier verification record. Its actual creation, integrity and extraction are not verified by the current audit, so do not rely on that path unless the file is confirmed locally.
 
-The workspace is not a Git repository (`.git` is absent), so no commit or push was created. The ZIP is a clean source handoff; no public GitHub upload was performed.
+The earlier statement that no Git commit or push was created is superseded. The Round 3 branch was pushed, merged into `main`, and `main` was pushed successfully on 2026-11-22. See the final audit update below.
 
 
 ## Final audit update — 2026-11-22
