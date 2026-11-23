@@ -754,31 +754,75 @@ def home():
 
 @app.get("/api/health")
 def health():
-
+    """Liveness endpoint: confirms the API process can answer requests."""
     try:
-
         installed = pytesseract.get_languages(config="")
-
         return {
             "status": "healthy",
             "version": VERSION,
-            "tesseract": str(
-                pytesseract.get_tesseract_version()
-            ),
+            "tesseract": str(pytesseract.get_tesseract_version()),
             "installed_languages": installed,
             "supported_languages": SUPPORTED_LANGUAGES,
             "missing_language_models": [
-                code for code in ALL_LANGUAGES
-                if code not in installed
-            ]
+                code for code in ALL_LANGUAGES if code not in installed
+            ],
         }
-
     except Exception as error:
-
+        # Keep liveness separate from readiness so a missing optional OCR
+        # dependency does not make the process look completely unreachable.
         return {
-            "status": "error",
-            "message": str(error)
+            "status": "degraded",
+            "version": VERSION,
+            "message": str(error)[:300],
+            "tesseract": None,
+            "installed_languages": [],
+            "supported_languages": SUPPORTED_LANGUAGES,
+            "missing_language_models": ALL_LANGUAGES,
         }
+
+
+@app.get("/api/ready")
+def readiness():
+    """Readiness endpoint: checks the minimum OCR runtime required for use."""
+    try:
+        installed = pytesseract.get_languages(config="")
+        version = str(pytesseract.get_tesseract_version())
+    except Exception as error:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "not_ready",
+                "checks": {"api": "ok", "tesseract": "unavailable"},
+                "message": str(error)[:300],
+            },
+        )
+
+    missing_required = [code for code in ("eng",) if code not in installed]
+    if missing_required:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "not_ready",
+                "checks": {"api": "ok", "tesseract": "ok", "english_ocr": "missing"},
+                "missing_required_language_models": missing_required,
+                "installed_languages": installed,
+            },
+        )
+
+    return {
+        "status": "ready",
+        "version": VERSION,
+        "tesseract": version,
+        "required_language_models": ["eng"],
+        "installed_languages": installed,
+        "missing_optional_language_models": [
+            code for code in ALL_LANGUAGES if code not in installed and code != "eng"
+        ],
+        "integrations": {
+            "tavily_configured": bool(os.getenv("TAVILY_API_KEY")),
+            "gemini_configured": bool(os.getenv("GEMINI_API_KEY")),
+        },
+    }
 
 
 @app.get("/api/languages")
