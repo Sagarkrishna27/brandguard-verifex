@@ -1380,3 +1380,73 @@ input, textarea, select { border-radius: 10px; }
   .main-content { padding: 20px 16px; }
   .evaluator-card { padding: 18px; }
 }
+
+
+/* BrandGuard colour refresh — balanced multi-accent palette */
+:root {
+  --primary: #7657e8;
+  --primary-dark: #6041cc;
+  --background: #f7f6fc;
+  --surface: #ffffff;
+  --text: #20223a;
+  --muted: #74758d;
+  --border: #e9e6f2;
+  --success: #159b78;
+  --warning: #d68a22;
+  --danger: #df526c;
+}
+body, .app-container, .main-content { background: var(--background); }
+.sidebar {
+  background: linear-gradient(160deg, #24204a 0%, #33245e 55%, #49306d 100%);
+}
+.brand-logo {
+  background: linear-gradient(135deg, #8b5cf6, #ec6594 58%, #f59e65);
+  box-shadow: 0 8px 22px rgba(177, 92, 197, .28);
+}
+.nav-item.active {
+  background: linear-gradient(100deg, rgba(167,139,250,.32), rgba(244,114,182,.18));
+  box-shadow: inset 3px 0 #f6a6c8;
+}
+.nav-item:hover { background: rgba(255,255,255,.10); }
+.welcome-text, .preview-label { color: #8a5ce6; }
+.user-avatar { background: #f1e8ff; color: #7657e8; }
+.hero-section {
+  background: linear-gradient(115deg, #6941c6 0%, #9b55c8 42%, #e36b91 76%, #f29b65 100%);
+  box-shadow: 0 18px 42px rgba(151, 83, 172, .18);
+}
+.hero-symbol { border-color: rgba(255,255,255,.55); }
+.stat-card { position: relative; overflow: hidden; }
+.stat-card:nth-child(4n + 1) { border-top: 3px solid #8b5cf6; }
+.stat-card:nth-child(4n + 2) { border-top: 3px solid #ec6594; }
+.stat-card:nth-child(4n + 3) { border-top: 3px solid #18a999; }
+.stat-card:nth-child(4n + 4) { border-top: 3px solid #f2a33c; }
+.stat-card:nth-child(4n + 1) .stat-icon { color: #8b5cf6; }
+.stat-card:nth-child(4n + 2) .stat-icon { color: #ec6594; }
+.stat-card:nth-child(4n + 3) .stat-icon { color: #18a999; }
+.stat-card:nth-child(4n + 4) .stat-icon { color: #e69a2e; }
+.workflow-card:nth-child(4n + 1) .workflow-icon { background: #f0eaff; color: #8054df; }
+.workflow-card:nth-child(4n + 2) .workflow-icon { background: #ffeaf1; color: #dc5c8b; }
+.workflow-card:nth-child(4n + 3) .workflow-icon { background: #e4f7f3; color: #159b87; }
+.workflow-card:nth-child(4n + 4) .workflow-icon { background: #fff2dc; color: #d68a22; }
+.primary-button, .print-button {
+  background: linear-gradient(110deg, #7652df, #b45bc4 58%, #e46b91);
+  box-shadow: 0 5px 14px rgba(150, 82, 190, .20);
+}
+.primary-button:hover, .print-button:hover {
+  background: linear-gradient(110deg, #6540ce, #a64db8 58%, #d95783);
+}
+.back-button:hover { border-color: #b78bea; color: #7657e8; }
+.form-field input:focus, .form-field textarea:focus, .form-field select:focus {
+  outline-color: #a477ed;
+}
+.upload-area { background: #fbf9ff; border-color: #d7c9f2; }
+.upload-area:hover { background: #f5efff; border-color: #9b75e8; }
+.upload-icon { color: #8b5cf6; }
+.evaluator-layout > .evaluator-card:nth-child(4n + 1) { border-top: 3px solid #8b5cf6; }
+.evaluator-layout > .evaluator-card:nth-child(4n + 2) { border-top: 3px solid #ec6594; }
+.evaluator-layout > .evaluator-card:nth-child(4n + 3) { border-top: 3px solid #18a999; }
+.evaluator-layout > .evaluator-card:nth-child(4n + 4) { border-top: 3px solid #f2a33c; }
+.analysis-placeholder { background: #fff7e8; border-color: #f4dfb5; }
+@media (max-width: 760px) {
+  .hero-section { background: linear-gradient(135deg, #6941c6, #bd5cae 58%, #e98283); }
+}
