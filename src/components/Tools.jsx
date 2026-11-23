@@ -382,58 +382,56 @@ function Tools({ onNavigate }) {
       </p>
 
       <div className="evaluator-layout">
-        <div style={{ display: 'grid', gap: '20px' }}>
-          <ImageToolCard title="3 · Video Advertisement Checker" endpoint="video-check">
-            <p className="tool-note">
-              Upload the first frame (or a still) of a video advertisement.
-              Checks offer text, disclaimers, validity and contact details.
-            </p>
-          </ImageToolCard>
+        <ImageToolCard title="3 · Video Advertisement Checker" endpoint="video-check">
+          <p className="tool-note">
+            Upload the first frame (or a still) of a video advertisement.
+            Checks offer text, disclaimers, validity and contact details.
+          </p>
+        </ImageToolCard>
 
-          <ImageToolCard title="4 · Hidden Disclaimer Detector" endpoint="detect-disclaimer">
-            <p className="tool-note">
-              Measures fine-print contrast in the lower poster area against
-              the headline area — the measurable pattern of hidden disclaimers.
-            </p>
-          </ImageToolCard>
+        <ImageToolCard title="4 · Hidden Disclaimer Detector" endpoint="detect-disclaimer">
+          <p className="tool-note">
+            Measures fine-print contrast in the lower poster area against
+            the headline area — the measurable pattern of hidden disclaimers.
+          </p>
+        </ImageToolCard>
 
-          <ImageToolCard title="8 · AI Ad Manipulation Detector" endpoint="manipulation-check">
-            <p className="tool-note">
-              Classical image-forensics heuristics (compression, sharpness,
-              colour-channel checks). Not deepfake AI — results are review flags.
-            </p>
-          </ImageToolCard>
-        </div>
+        <ImageToolCard title="5 · Embedded QR Detector" endpoint="detect-qr">
+          <p className="tool-note">
+            Detects a QR code inside a poster and checks whether it links
+            to a Trust Passport verification record.
+          </p>
+        </ImageToolCard>
 
-        <div style={{ display: 'grid', gap: '20px' }}>
-          <ImageToolCard title="5 · Embedded QR Detector" endpoint="detect-qr">
-            <p className="tool-note">
-              Detects a QR code inside a poster and checks whether it links
-              to a Trust Passport verification record.
-            </p>
-          </ImageToolCard>
+        <TextToolCard
+          title="6 · Ad-to-Website Truth Checker"
+          endpoint="truth-check"
+          placeholder="Paste the advertisement text"
+          resultNote="Compares the ad's numbers and claims against the brand's live website. A mismatch is a review flag, not proof of a false claim."
+        />
 
-          <TextToolCard
-            title="6 · Ad-to-Website Truth Checker"
-            endpoint="truth-check"
-            placeholder="Paste the advertisement text"
-            resultNote="Compares the ad's numbers and claims against the brand's live website. A mismatch is a review flag, not proof of a false claim."
-          />
+        <BrandDnaCard />
 
-          <TextToolCard
-            title="9 · Fake Review Detector"
-            endpoint="fake-reviews"
-            placeholder="Paste reviews (one per line)"
-            resultNote="Linguistic analysis for unspecific praise, template names and uniform sentiment. Flags are indicators — humans decide."
-          />
-          <TextToolCard
-            title="11 · Advertisement Improvement Assistant"
-            endpoint="improve-ad"
-            placeholder="Paste advertisement copy for review suggestions"
-            resultNote="Returns rule-based claim wording, disclaimer and visual/layout suggestions for human editing."
-          />
-          <BrandDnaCard />
-        </div>
+        <ImageToolCard title="8 · AI Ad Manipulation Detector" endpoint="manipulation-check">
+          <p className="tool-note">
+            Classical image-forensics heuristics (compression, sharpness,
+            colour-channel checks). Not deepfake AI — results are review flags.
+          </p>
+        </ImageToolCard>
+
+        <TextToolCard
+          title="9 · Fake Review Detector"
+          endpoint="fake-reviews"
+          placeholder="Paste reviews (one per line)"
+          resultNote="Linguistic analysis for unspecific praise, template names and uniform sentiment. Flags are indicators — humans decide."
+        />
+
+        <TextToolCard
+          title="11 · Advertisement Improvement Assistant"
+          endpoint="improve-ad"
+          placeholder="Paste advertisement copy for review suggestions"
+          resultNote="Returns rule-based claim wording, disclaimer and visual/layout suggestions for human editing."
+        />
       </div>
 
       <footer className="footer">
