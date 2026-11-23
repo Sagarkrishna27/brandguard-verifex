@@ -8,16 +8,16 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --primary: #536dfe;
-  --primary-dark: #4055db;
-  --background: #f4f6fb;
+  --primary: #7657e8;
+  --primary-dark: #6041cc;
+  --background: #f7f6fc;
   --surface: #ffffff;
-  --text: #172033;
-  --muted: #78849a;
-  --border: #e7ebf3;
-  --danger: #dc4c64;
-  --warning: #d99527;
-  --success: #15976a;
+  --text: #20223a;
+  --muted: #74758d;
+  --border: #e9e6f2;
+  --danger: #df526c;
+  --warning: #d68a22;
+  --success: #159b78;
 }
 
 * { box-sizing: border-box; }
