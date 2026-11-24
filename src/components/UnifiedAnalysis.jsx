@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiRequest, apiUrl } from '../lib/api.js'
+import PosterCorrectionEditor from './PosterCorrectionEditor.jsx'
 
 const MODULE_STATUS_LABELS = {
   PENDING: 'Waiting',
@@ -15,6 +16,9 @@ function UnifiedAnalysis({ onNavigate }) {
   const [file, setFile] = useState(null)
   const [evidenceFiles, setEvidenceFiles] = useState([])
   const [correctedFile, setCorrectedFile] = useState(null)
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [editorImage, setEditorImage] = useState('')
+  const [editorLoading, setEditorLoading] = useState(false)
   const [preview, setPreview] = useState('')
   const [job, setJob] = useState(null)
   const [error, setError] = useState('')
@@ -91,6 +95,26 @@ function UnifiedAnalysis({ onNavigate }) {
   const improvement = report?.improvement_report
   const modules = job?.modules || []
   const statusClass = (status) => `analysis-status analysis-status-${String(status || '').toLowerCase().replaceAll('_', '-')}`
+
+  async function openCorrectionEditor() {
+    setError('')
+    setEditorLoading(true)
+    try {
+      const reportId = report?.verification?.id
+      if (!reportId) throw new Error('The report ID is not available yet.')
+      const saved = await apiRequest(apiUrl('/api/analysis-reports/' + encodeURIComponent(reportId)), {}, {
+        timeoutMs: 120_000,
+        fallbackMessage: 'Could not load the original poster for editing.',
+      })
+      if (!saved.poster_data_url) throw new Error('The original poster image is unavailable for editing.')
+      setEditorImage(saved.poster_data_url)
+      setEditorOpen(true)
+    } catch (requestError) {
+      setError(requestError.message || 'Could not open the poster editor.')
+    } finally {
+      setEditorLoading(false)
+    }
+  }
 
   function openEvidence() {
     const extracted = report?.ocr?.original_extracted_text || report?.video?.sampled_frames?.map((frame) => frame.text).filter(Boolean).join('\n') || ''
@@ -176,13 +200,29 @@ function UnifiedAnalysis({ onNavigate }) {
           )}
           {report?.verification && (
             <section className="evaluator-card">
-              <h3>Corrected advertisement and re-analysis</h3>
-              <p>Make corrections in your preferred editor, then upload the corrected poster here. BrandGuard will run the full analysis again and link the new report to this original report.</p>
-              <input type="file" accept="image/png,image/jpeg" onChange={(event) => setCorrectedFile(event.target.files?.[0] || null)} />
+              <h3>Correct and re-analyse the poster</h3>
+              <p>Open the correction workspace to add replacement wording or disclaimers on top of the original poster, or upload a poster corrected in another editor. Then run all checks again.</p>
+              <button type="button" className="primary-button" disabled={editorLoading || loading} onClick={openCorrectionEditor}>
+                {editorLoading ? 'Loading original poster…' : 'Open poster correction workspace'}
+              </button>
+              <label className="upload-area">
+                <span className="upload-title">Or upload a corrected poster</span>
+                <input type="file" accept="image/png,image/jpeg" onChange={(event) => setCorrectedFile(event.target.files?.[0] || null)} />
+              </label>
               {correctedFile && <p>Selected corrected poster: <strong>{correctedFile.name}</strong></p>}
               <button type="button" className="primary-button" disabled={!correctedFile || loading} onClick={() => analyze({ preventDefault() {} }, report.verification.id, correctedFile)}>
                 {loading ? 'Re-analysing corrected poster…' : 'Upload corrected poster & re-analyse'}
               </button>
+              {editorOpen && editorImage && (
+                <PosterCorrectionEditor
+                  imageUrl={editorImage}
+                  onClose={() => setEditorOpen(false)}
+                  onExport={(exportedFile) => {
+                    setCorrectedFile(exportedFile)
+                    setEditorOpen(false)
+                  }}
+                />
+              )}
               {report.revision_of && <p>Revision of previous report: <code>{report.revision_of}</code></p>}
               {report.revision_comparison && (
                 <section className="revision-comparison">
