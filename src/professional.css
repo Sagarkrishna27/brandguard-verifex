@@ -609,3 +609,96 @@ textarea, select {
   .unified-upload .upload-area { padding: 18px 12px; }
   .unified-upload .upload-area input[type="file"] { font-size: 12px; }
 }
+
+
+/* Full VERIFEX identity lockup in the dashboard hero */
+.hero-brand-lockup {
+  width: 258px;
+  min-width: 258px;
+  height: auto;
+  min-height: 174px;
+  padding: 22px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255,255,255,.42);
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(255,255,255,.19), rgba(255,255,255,.08));
+  box-shadow: 0 14px 34px rgba(43,24,91,.16), inset 0 1px rgba(255,255,255,.24);
+}
+.hero-brand-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+}
+.hero-brand-lockup .hero-symbol-logo {
+  width: 66px;
+  height: 66px;
+  margin: 0;
+  flex: 0 0 66px;
+}
+.hero-brand-type {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+.hero-brand-type strong {
+  color: #fff;
+  font-family: 'Manrope', sans-serif;
+  font-size: 25px;
+  line-height: 1;
+  letter-spacing: 1.5px;
+  font-weight: 800;
+}
+.hero-brand-type span {
+  color: #e9faff;
+  font-size: 7px;
+  line-height: 1.5;
+  letter-spacing: .75px;
+  white-space: nowrap;
+  font-weight: 700;
+}
+.hero-brand-type i {
+  color: #78eaff;
+  font-style: normal;
+  padding: 0 1px;
+}
+.hero-brand-lockup .hero-symbol-caption {
+  margin: 0;
+  padding-top: 11px;
+  width: 100%;
+  border-top: 1px solid rgba(255,255,255,.32);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 2.6px;
+  font-weight: 800;
+  text-align: center;
+}
+@media (max-width: 900px) {
+  .hero-brand-lockup {
+    width: min(100%, 258px);
+    min-width: 0;
+    min-height: 158px;
+    margin: 20px auto 0;
+    padding: 19px 16px;
+  }
+  .hero-brand-lockup .hero-symbol-logo {
+    width: 58px;
+    height: 58px;
+    flex-basis: 58px;
+  }
+}
+@media (max-width: 560px) {
+  .hero-brand-lockup {
+    width: min(100%, 245px);
+    margin: 18px auto 0;
+  }
+}
