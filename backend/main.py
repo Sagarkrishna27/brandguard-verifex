@@ -906,6 +906,22 @@ async def perform_ocr(
 
         primary_text = best["text"]
 
+        # Gemini fallback when Tesseract confidence is below 60%.
+        gemini_fallback_used = False
+
+        if float(best.get("average_confidence", 0) or 0) < 60:
+            gemini_result = run_gemini_ocr(
+                contents,
+                file.content_type or "image/jpeg"
+            )
+
+            if (
+                gemini_result.get("status") == "GEMINI_COMPLETED"
+                and gemini_result.get("text", "").strip()
+            ):
+                primary_text = gemini_result["text"].strip()
+                gemini_fallback_used = True
+
         # Four regional OCR analyses.
         regions = get_regions(
             original,
@@ -954,6 +970,8 @@ async def perform_ocr(
             "merged_word_count": best["word_count"],
             "merged_word_confidence": best["average_confidence"],
             "ocr_confidence": best["average_confidence"],
+            "gemini_fallback_used": gemini_fallback_used,
+            "ocr_engine": "Gemini + Tesseract" if gemini_fallback_used else "Tesseract",
 
             "primary_critical_values": primary_critical_values,
 
@@ -1411,3 +1429,36 @@ async def analyze_video(file: UploadFile = File(...), include_frame_checks: bool
 
 from unified_analysis import router as unified_analysis_router
 app.include_router(unified_analysis_router)
+
+from google import genai
+from google.genai import types
+
+def run_gemini_ocr(image_bytes: bytes, mime_type: str = "image/jpeg"):
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return {"status": "GEMINI_NOT_CONFIGURED", "text": None}
+
+    try:
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-3.5-flash-lite",
+            contents=[
+                types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                (
+                    "Read all visible advertisement text exactly. Preserve the original "
+                    "languages and scripts. Include brand names, discounts, promo codes, "
+                    "conditions, validity, website and phone numbers. Do not guess unclear text."
+                ),
+            ],
+        )
+        return {
+            "status": "GEMINI_COMPLETED",
+            "text": response.text or "",
+        }
+    except Exception as exc:
+        return {
+            "status": "GEMINI_FAILED",
+            "text": None,
+            "error": str(exc)[:300],
+        }
+

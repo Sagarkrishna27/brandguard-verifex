@@ -13,6 +13,7 @@ const MODULE_STATUS_LABELS = {
 
 function UnifiedAnalysis({ onNavigate }) {
   const [file, setFile] = useState(null)
+  const [evidenceFiles, setEvidenceFiles] = useState([])
   const [preview, setPreview] = useState('')
   const [job, setJob] = useState(null)
   const [error, setError] = useState('')
@@ -64,6 +65,7 @@ function UnifiedAnalysis({ onNavigate }) {
     try {
       const form = new FormData()
       form.append('file', file)
+      evidenceFiles.forEach((evidenceFile) => form.append('evidence_files', evidenceFile))
       const settings = JSON.parse(localStorage.getItem('brandguard-settings') || '{}')
       form.append('languages', settings.defaultLanguage || 'eng')
       const initial = await apiRequest(apiUrl('/api/unified-analysis'), {
@@ -109,6 +111,21 @@ function UnifiedAnalysis({ onNavigate }) {
           <span className="upload-hint">PNG/JPG up to 15 MB · video up to 200 MB</span>
           <input type="file" accept="image/png,image/jpeg,video/*" onChange={chooseFile} />
         </label>
+        <label className="upload-area evidence-upload-area">
+          <span className="upload-title">Add supporting evidence (optional)</span>
+          <span className="upload-hint">PDF, TXT, CSV, JSON or image files ? Up to 10 documents, 10 MB each</span>
+          <input
+            type="file"
+            multiple
+            accept=".pdf,.txt,.md,.csv,.json,image/*"
+            onChange={(event) => setEvidenceFiles(Array.from(event.target.files || []))}
+          />
+        </label>
+        {evidenceFiles.length > 0 && (
+          <p className="upload-file-name">
+            Evidence selected: <strong>{evidenceFiles.map((item) => item.name).join(', ')}</strong>
+          </p>
+        )}
         {file && <p className="upload-file-name">Selected: <strong>{file.name}</strong> · {(file.size / (1024 * 1024)).toFixed(2)} MB</p>}
         {preview && <img className="unified-preview" src={preview} alt="Selected advertisement preview" />}
         <button className="primary-button" disabled={!file || loading}>

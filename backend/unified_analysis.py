@@ -1,4 +1,4 @@
-"""Single-upload orchestration and public, read-only analysis reports.
+﻿"""Single-upload orchestration and public, read-only analysis reports.
 
 This module coordinates existing BrandGuard checks. It deliberately reports
 missing evidence and unavailable external verification as such; it does not
@@ -59,7 +59,8 @@ def _initialize_database():
                 status TEXT NOT NULL,
                 modules_json TEXT NOT NULL,
                 report_json TEXT,
-                error TEXT
+                error TEXT,
+                evidence_json TEXT NOT NULL DEFAULT '[]'
             )
         """)
         connection.execute("""
@@ -72,6 +73,8 @@ def _initialize_database():
         columns = {row[1] for row in connection.execute("PRAGMA table_info(analysis_jobs)")}
         if "languages" not in columns:
             connection.execute("ALTER TABLE analysis_jobs ADD COLUMN languages TEXT NOT NULL DEFAULT 'eng'")
+        if "evidence_json" not in columns:
+            connection.execute("ALTER TABLE analysis_jobs ADD COLUMN evidence_json TEXT NOT NULL DEFAULT '[]'")
         connection.commit()
 
 
@@ -221,10 +224,36 @@ def _food_check(text):
     food_signals = re.compile(r"\b(food|beverage|ingredient|nutrition|sugar[- ]?free|fssai|organic|protein|calorie|edible|supplement)\b", re.I)
     if not food_signals.search(text or ""):
         return _skip("No food-related terms were detected in the extracted text.")
-    return _unable(
+    result = _unable(
         "Food-related wording was detected, but no official FSSAI source, lab report, sample details, or accreditation record was supplied for this automated run.",
         {"legal_compliance_checked": False, "human_review_required": True},
     )
+
+    try:
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            client = bg.genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model="gemini-3.5-flash-lite",
+                contents=(
+                    "Contextually review this food advertisement text. Identify "
+                    "food, nutrition, health, organic, ingredient and certification "
+                    "claims; explain what evidence each claim would need. Do not "
+                    "declare a product safe, unsafe, compliant, certified or "
+                    "FSSAI-approved. Do not invent regulations or evidence. "
+                    "Require human verification.\nAdvertisement text:\n" + text[:12000]
+                ),
+                config=bg.types.GenerateContentConfig(temperature=0.2),
+            )
+            result["gemini_context_review"] = response.text or ""
+            result["gemini_status"] = "COMPLETED"
+        else:
+            result["gemini_status"] = "UNAVAILABLE"
+    except Exception:
+        result["gemini_context_review"] = "Gemini review unavailable."
+        result["gemini_status"] = "UNAVAILABLE"
+
+    return result
 
 
 
@@ -309,6 +338,51 @@ def _legal_compliance_check(text):
                 "status": "HUMAN_REVIEW_REQUIRED",
             })
 
+    # Gemini contextual review supplements, but never replaces, rule checks.
+    try:
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            client = bg.genai.Client(api_key=api_key)
+            categories = [rule["category"] for rule in rules]
+            response = client.models.generate_content(
+                model="gemini-3.5-flash-lite",
+                contents=(
+                    "Review this advertisement for additional implied or contextual "
+                    "claims relevant to Indian advertising compliance. Return JSON only: "
+                    '{"findings":[{"text":"exact quote","category":"category",'
+                    '"issue":"potential concern","evidence":"evidence needed"}]}. '
+                    "Allowed categories: " + ", ".join(categories) +
+                    ". Only quote text present in the advertisement. Do not invent "
+                    "claims, laws, evidence, or legal conclusions. Advertisement: "
+                    + text[:12000]
+                ),
+                config=bg.types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.1,
+                ),
+            )
+            ai_data = json.loads(response.text or "{}")
+            existing = {
+                (f.get("text", "").casefold(), f.get("category"))
+                for f in findings
+            }
+            for item in ai_data.get("findings", [])[:10]:
+                quote = str(item.get("text", "")).strip()
+                category = str(item.get("category", "")).strip().upper()
+                key = (quote.casefold(), category)
+                if quote and quote.casefold() in text.casefold() and category in categories and key not in existing:
+                    findings.append({
+                        "text": quote,
+                        "category": category,
+                        "issue": str(item.get("issue", "Possible contextual claim requires review.")),
+                        "references": [],
+                        "evidence_to_request": str(item.get("evidence", "Relevant supporting evidence.")),
+                        "status": "HUMAN_REVIEW_REQUIRED",
+                    })
+                    existing.add(key)
+    except Exception:
+        pass
+
     return {
         "_status": "COMPLETED",
         "_message": "Expanded preliminary advertising compliance screening completed. Findings are indicators for review, not legal conclusions.",
@@ -316,7 +390,7 @@ def _legal_compliance_check(text):
         "finding_count": len(findings),
         "human_review_required": True,
         "legal_conclusion": False,
-        "screening_method": "Rule-based keyword and phrase screening",
+        "screening_method": "Rule-based keyword and phrase screening with Gemini contextual review",
         "sources": [
             {
                 "name": "ASCI Code",
@@ -335,7 +409,7 @@ def _legal_compliance_check(text):
 
 
 def _price_check(text):
-    values = re.findall(r"(?:₹|Rs\.?\s*)\s?\d[\d,]*(?:\.\d{1,2})?|\b\d{1,3}\s?%\s?(?:off|discount)\b", text or "", re.I)
+    values = re.findall(r"(?:â‚¹|Rs\.?\s*)\s?\d[\d,]*(?:\.\d{1,2})?|\b\d{1,3}\s?%\s?(?:off|discount)\b", text or "", re.I)
     return _unable(
         "Advertisement price/discount text can be extracted, but no verified same-product, size, location, coupon, and validity source was configured. No discount was independently confirmed.",
         {"detected_values": values, "calculation_performed": False, "purchase_performed": False},
@@ -362,30 +436,70 @@ def _completeness_check(text, disclaimer_result=None):
     value = text or ""
     checks = [
         {"item": "Advertiser or product identification", "present": bool(re.search(r"\b(brand|product|company|shop|store|by|from)\b", value, re.I)), "basis": "OCR text keyword signal only"},
-        {"item": "Offer or price details", "present": bool(re.search(r"\b(off|sale|offer|deal|₹|rs\.?|price|%|discount)\b", value, re.I)), "basis": "OCR text pattern"},
+        {"item": "Offer or price details", "present": bool(re.search(r"\b(off|sale|offer|deal|â‚¹|rs\.?|price|%|discount)\b", value, re.I)), "basis": "OCR text pattern"},
         {"item": "Offer terms or validity", "present": bool(re.search(r"\b(terms|conditions|valid|until|till|expires|minimum|excludes)\b", value, re.I)), "basis": "OCR text pattern"},
         {"item": "Contact or destination", "present": bool(re.search(r"https?://|www\.|\b\w+@\w+\.|\+?\d[\d ()-]{7,}\d", value, re.I)), "basis": "OCR text pattern"},
         {"item": "Lower-area disclaimer text", "present": bool((disclaimer_result or {}).get("bottom_text_extracted")), "basis": "Existing disclaimer detector"},
     ]
     missing = [item["item"] for item in checks if not item["present"]]
-    return {
+    result = {
         "checks": checks,
         "missing_items": missing,
         "note": "This is a limited text-presence checklist, not a legal or sector-specific completeness determination.",
     }
 
+    try:
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            client = bg.genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model="gemini-3.5-flash-lite",
+                contents=(
+                    "Review this advertisement for potentially missing information. "
+                    "Return JSON with 'additional_missing_information' as a list "
+                    "and 'explanation' as a short string. Consider advertiser identity, "
+                    "offer conditions, validity, contact details, disclaimers and "
+                    "claim qualifications. Do not assume every item is legally required. "
+                    "Do not make a legal compliance verdict. Require human review.\n"
+                    "Advertisement text:\n" + value[:12000]
+                ),
+                config=bg.types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.2,
+                ),
+            )
+            data = json.loads(response.text or "{}")
+            result["gemini_context_review"] = {
+                "additional_missing_information": [
+                    str(item)[:300]
+                    for item in data.get("additional_missing_information", [])[:10]
+                ] if isinstance(data.get("additional_missing_information"), list) else [],
+                "explanation": str(data.get("explanation", ""))[:1500],
+                "human_review_required": True,
+            }
+            result["gemini_status"] = "COMPLETED"
+        else:
+            result["gemini_status"] = "UNAVAILABLE"
+    except Exception:
+        result["gemini_status"] = "UNAVAILABLE"
 
-def _evidence_result(claims):
-    result = bg._verify_evidence(claims or [], [])
+    return result
+
+
+def _evidence_result(claims, evidence=None):
+    evidence = evidence or []
+    result = bg._verify_evidence(claims or [], evidence)
     proof_claims = []
+
     for claim in result.get("claims", []):
         status = claim["status"]
         proof_status = {
-            "SUPPORTED": "SUPPORTED",
-            "QUESTIONABLE": "NEEDS HUMAN REVIEW",
-            "EXPIRED": "NEEDS HUMAN REVIEW",
+            "REVIEW_REQUIRED": "NEEDS HUMAN REVIEW",
+            "UNDER_REVIEW": "NEEDS HUMAN REVIEW",
+            "INSUFFICIENT": "NEEDS HUMAN REVIEW",
             "MISSING": "EVIDENCE REQUIRED",
         }.get(status, "UNABLE TO VERIFY")
+
         proof_claims.append({
             "id": claim["id"],
             "claim": claim["claim"],
@@ -393,10 +507,17 @@ def _evidence_result(claims):
             "evidence_required": claim.get("evidence_required"),
             "status": proof_status,
             "explanation": claim["explanation"],
-            "matched_evidence": [],
+            "matched_evidence": claim.get("matched_evidence", []),
         })
-    return result, {"claims": proof_claims, "evidence_documents_supplied": 0,
-                    "note": "No supporting certificates were included with the single advertisement upload; no claim is marked verified."}
+
+    proof_result = {
+        "claims": proof_claims,
+        "evidence_documents_supplied": len(evidence),
+        "documents": result.get("documents", []),
+        "summary": result.get("summary", {}),
+        "note": result.get("note", "All claims require human review. No claim is automatically verified."),
+    }
+    return result, proof_result
 
 
 def _make_verification(report_id):
@@ -457,6 +578,7 @@ def _store_finished_report(report):
 
 
 def _run_image_job(job_id, row):
+    evidence = json.loads(row["evidence_json"] or "[]")
     image = ImageOps.exif_transpose(Image.open(row["temp_path"])).convert("RGB")
     ocr_image = image.copy()
     ocr_image.thumbnail(
@@ -489,13 +611,36 @@ def _run_image_job(job_id, row):
 
     from media_forensics import analyze_image as run_media_forensics
 
+    def _image_gemini_review(result, source_image):
+        try:
+            buffer = io.BytesIO()
+            source_image.save(buffer, format="JPEG")
+            client = bg.genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+            response = client.models.generate_content(
+                model="gemini-3.5-flash-lite",
+                contents=[
+                    bg.types.Part.from_bytes(
+                        data=buffer.getvalue(), mime_type="image/jpeg"
+                    ),
+                    "Review this advertisement image. Describe visible content, "
+                    "visual inconsistencies and disclaimer visibility. Do not "
+                    "declare it fake or AI-generated. Require human verification."
+                ],
+            )
+            result["gemini_context_review"] = response.text or ""
+        except Exception:
+            result["gemini_context_review"] = "Gemini review unavailable."
+        return result
+
     parallel = {
-        "media_forensics": lambda: run_media_forensics(image, bg.detect_manipulation),
-        "disclaimer": lambda: bg.detect_hidden_disclaimer(image),
+        "media_forensics": lambda: _image_gemini_review(run_media_forensics(image, bg.detect_manipulation), image),
+        "disclaimer": lambda: _image_gemini_review(
+            bg.detect_hidden_disclaimer(image), image
+        ),
         "qr": lambda: bg.detect_embedded_qr(image),
         "manipulation": lambda: bg.detect_manipulation(image),
-        "claim_evidence": lambda: _evidence_result(claims)[0],
-        "proof_claim": lambda: _evidence_result(claims)[1],
+        "claim_evidence": lambda: _evidence_result(claims, evidence)[0],
+        "proof_claim": lambda: _evidence_result(claims, evidence)[1],
         "legal_compliance": lambda: _legal_compliance_check(text),
         "price_discount": lambda: _price_check(text),
         "website_truth": lambda: _website_check(text),
@@ -527,6 +672,7 @@ def _run_image_job(job_id, row):
 
 
 def _run_video_job(job_id, row):
+    evidence = json.loads(row["evidence_json"] or "[]")
     upload = UploadFile(filename=row["filename"], file=open(row["temp_path"], "rb"),
                         headers=Headers({"content-type": row["media_type"]}))
     try:
@@ -537,10 +683,41 @@ def _run_video_job(job_id, row):
     frames = (video_data or {}).get("sampled_frames", [])
     if video_data:
         from media_forensics import analyze_video as run_video_forensics
+        def _video_gemini_review(result):
+            try:
+                frames_to_review = frames[:6]
+                prompt = (
+                    "Review these sampled advertisement video frames in timestamp order. "
+                    "Describe visible content, possible visual inconsistencies, disclaimer "
+                    "visibility and context. Do not declare the video fake or AI-generated. "
+                    "Do not invent audio or events. Human verification is required."
+                )
+                contents = [prompt]
+                for frame in frames_to_review:
+                    frame_image = frame.get("image")
+                    if isinstance(frame_image, Image.Image):
+                        buffer = io.BytesIO()
+                        frame_image.save(buffer, format="JPEG")
+                        contents.append(bg.types.Part.from_bytes(
+                            data=buffer.getvalue(), mime_type="image/jpeg"
+                        ))
+
+                client = bg.genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+                response = client.models.generate_content(
+                    model="gemini-3.5-flash-lite",
+                    contents=contents,
+                )
+                result["gemini_context_review"] = response.text or ""
+            except Exception:
+                result["gemini_context_review"] = "Gemini review unavailable."
+            return result
+
         _run_module(
             job_id,
             "media_forensics",
-            lambda: run_video_forensics(row["temp_path"], bg.detect_manipulation),
+            lambda: _video_gemini_review(
+                run_video_forensics(row["temp_path"], bg.detect_manipulation)
+            ),
         )
         frame_text = "\n".join(frame.get("text", "") for frame in frames)
         frame_claims = []
@@ -560,8 +737,8 @@ def _run_video_job(job_id, row):
             for item in frame_claims
         ]
         _run_module(job_id, "critical_values", lambda: {"values": bg.critical_values(frame_text), "source": "sampled video frames"})
-        _run_module(job_id, "claim_evidence", lambda: _evidence_result(all_claims)[0])
-        _run_module(job_id, "proof_claim", lambda: _evidence_result(all_claims)[1])
+        _run_module(job_id, "claim_evidence", lambda: _evidence_result(all_claims, evidence)[0])
+        _run_module(job_id, "proof_claim", lambda: _evidence_result(all_claims, evidence)[1])
         _run_module(job_id, "ocr_regions", lambda: _skip("Video sampling returns timestamped frame text, not consolidated spatial OCR regions."))
         image_findings = [frame.get("checks", {}) for frame in frames]
         qr_findings = [frame.get("qr") for frame in frames if frame.get("qr")]
@@ -654,11 +831,35 @@ async def start_unified_analysis(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     languages: str = Form("eng"),
+    evidence_files: list[UploadFile] = File(default=[]),
 ):
     media_type = file.content_type or ""
     if not (media_type.startswith("image/") or media_type.startswith("video/")):
         raise HTTPException(status_code=400, detail="Upload one PNG/JPG image or supported video file.")
     selected_languages = bg.validate_languages(languages)
+    evidence_documents = []
+    if len(evidence_files) > 10:
+        raise HTTPException(status_code=413, detail="Upload up to 10 evidence documents.")
+
+    for evidence_file in evidence_files:
+        try:
+            evidence_name = Path(evidence_file.filename or "evidence").name
+            evidence_content = await evidence_file.read(10 * 1024 * 1024 + 1)
+            if len(evidence_content) > 10 * 1024 * 1024:
+                raise HTTPException(status_code=413, detail=f"Evidence file exceeds the 10 MB limit: {evidence_name}")
+            if not evidence_content:
+                raise HTTPException(status_code=400, detail=f"Evidence file is empty: {evidence_name}")
+
+            document = bg._extract_evidence_document(
+                evidence_name,
+                evidence_file.content_type or "application/octet-stream",
+                evidence_content,
+            )
+            document["text"] = (document.get("text") or "")[:1_000_000]
+            evidence_documents.append(document)
+        finally:
+            await evidence_file.close()
+
     limit = MAX_VIDEO_BYTES if media_type.startswith("video/") else MAX_IMAGE_BYTES
     suffix = Path(file.filename or "upload").suffix[:12]
     temp_path = None
@@ -704,13 +905,13 @@ async def start_unified_analysis(
     created_at = _now()
     with _connect() as connection:
         connection.execute(
-        "INSERT INTO analysis_jobs (id, report_id, created_at, filename, media_type, languages, temp_path, status, modules_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (job_id, report_id, created_at, Path(file.filename or "advertisement").name, media_type, selected_languages, temp_path, "QUEUED", json.dumps(modules)),
+        "INSERT INTO analysis_jobs (id, report_id, created_at, filename, media_type, languages, temp_path, status, modules_json, evidence_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (job_id, report_id, created_at, Path(file.filename or "advertisement").name, media_type, selected_languages, temp_path, "QUEUED", json.dumps(modules), json.dumps(evidence_documents, ensure_ascii=False)),
         )
         connection.commit()
     background_tasks.add_task(_process_job, job_id)
     return {"success": True, "job_id": job_id, "report_id": report_id, "status": "QUEUED", "modules": modules,
-            "note": "One upload started the applicable existing checks. External evidence, official price, and sector authority verification remain distinct limitations."}
+            "note": "Advertisement analysis started. Supplied evidence documents are checked for text overlap only and always require human review."}
 
 
 @router.get("/api/unified-analysis/{job_id}")
@@ -735,4 +936,7 @@ def get_public_analysis_report(report_id: str):
     if row is None:
         raise HTTPException(status_code=404, detail="Public analysis report not found or not yet complete.")
     return JSONResponse(json.loads(row["payload_json"]), headers={"Cache-Control": "no-store"})
+
+
+
 
