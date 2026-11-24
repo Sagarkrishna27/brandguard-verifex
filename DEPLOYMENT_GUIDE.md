@@ -1,60 +1,82 @@
 # BrandGuard deployment guide
 
-Status (2026-11-22): partial deployment verification. The public Vercel frontend https://brandguard-seven.vercel.app/ loads and renders the BrandGuard dashboard. Earlier project history records a Render backend deployment as user-reported, but the exact public API URL is not recorded in this repository and could not be independently recovered. A request to https://brandguard-seven.vercel.app/api/health returned HTTP 500; this is not a verified Render API health check. Do not mark backend health, end-to-end public workflows, or external QR verification as verified until the exact Render API URL is tested.
+**Live deployment check — 2026-11-24**
 
-## Current release blockers
+- Frontend: https://brandguard-seven.vercel.app/ — fetched successfully and the BrandGuard dashboard rendered.
+- Backend: https://brandguard-backend-fxhr.onrender.com/ — the exact Render API origin is configured as the production fallback in `src/lib/api.js`.
+- `GET /api/health` — returned `healthy`, API version `3.0.0`, Tesseract `5.5.0`, with all 14 configured OCR language models installed.
+- `GET /api/ready` — returned `ready`; no missing optional language models were reported.
+- Optional providers: the live readiness response reported `tavily_configured=false` and `gemini_configured=false`.
 
-1. The exact production API URL is not documented in the repository. Confirm the Render service's public HTTPS URL and verify `/api/health`. The frontend's `VITE_API_BASE_URL` is compiled into the Vite build, so it must point to that API before a production rebuild.
-2. FastAPI requires Tesseract and language model files on the host; this repository does not provision those operating-system packages.
-3. Trust Passport and One-Upload reports use SQLite. The host must provide durable storage and the backend must set `BRANDGUARD_DATA_DIR` to that mount. Do not put real submissions on an ephemeral filesystem.
-4. Public QR links are only correct after both `BRANDGUARD_PUBLIC_URL` (backend API URL) and `BRANDGUARD_FRONTEND_URL` (frontend HTTPS URL) are configured and reachable.
-5. Set `BRANDGUARD_ALLOWED_ORIGINS` to the exact frontend origin(s). Do not use wildcard origins with credentials.
-6. Configure a long random `BRANDGUARD_REVIEWER_TOKEN` as a backend secret before using the reviewer workflow. Do not expose it to the browser or commit it.
+These checks establish that the frontend renders and the backend health/readiness endpoints respond. They do **not** establish that every browser workflow, public report, QR scan, external integration or storage behavior has been tested end to end.
 
-## Suggested hosting shape
+## Deployment topology
 
-- Frontend: static Vite site. Vercel documents Vite support and serves the `dist` output; the build-time `VITE_API_BASE_URL` must point to the API.
-- Backend: a Python ASGI host that provides Tesseract, OpenCV's required system libraries, HTTPS, environment secrets and durable database storage.
-- Keep the current SQLite design only if the chosen backend host supplies a persistent mounted disk and its backup/restore behavior is acceptable. Otherwise, a database migration is a separate project decision and is not included here.
+- **Frontend:** React + Vite static application on Vercel.
+- **Backend:** Python + FastAPI service on Render.
+- **API routing:** the frontend uses `VITE_API_BASE_URL` when set. In production, the current source falls back to `https://brandguard-backend-fxhr.onrender.com`; local development falls back to `http://127.0.0.1:8000`.
+- **Vercel Services configuration:** `vercel.json` declares frontend and backend services and rewrites `/api/*` to the backend service. The deployed frontend's configured API origin is still the Render URL fallback unless overridden at build time.
 
-The free Render web-service tier sleeps after inactivity and uses an ephemeral filesystem; its free Postgres option is time-limited. That combination is suitable only for a disposable demo, not durable Trust Passport/report records. Persistent disks are paid. No paid service is being requested or provisioned here. Verify current plan details before choosing a host.
+## Required backend configuration
 
-Official provider references checked 2026-11-18: [Vercel Vite deployment](https://vercel.com/docs/frameworks/frontend/vite), [Render free service limits](https://render.com/docs/free), [Render FastAPI deployment](https://render.com/docs/deploy-fastapi), and [Render persistent disks](https://render.com/docs/disks).
+Use `backend/.env.example` as a reference. Configure secrets and deployment-specific values in the hosting dashboard, not in committed files.
 
-## Configuration sequence after you choose a host
+- `BRANDGUARD_ALLOWED_ORIGINS` — exact trusted frontend origins. Do not use wildcard origins with credentials.
+- `BRANDGUARD_PUBLIC_URL` — public backend API origin used in Trust Passport QR links.
+- `BRANDGUARD_FRONTEND_URL` — public frontend origin used in unified-report QR links.
+- `BRANDGUARD_DATA_DIR` — durable mounted directory for SQLite records and report data.
+- `BRANDGUARD_REVIEWER_TOKEN` — long random backend-only secret for reviewer operations. Never expose it to the browser or use a `VITE_*` variable.
+- `TAVILY_API_KEY` and `GEMINI_API_KEY` — optional backend-only provider keys. The live readiness endpoint currently reports both integrations as not configured. Do not describe autonomous live research as operational until keys are configured and real provider calls are verified.
+- Tesseract and the required language model files must be installed on the backend host. The live service currently reports Tesseract 5.5.0 and 14 installed OCR language models.
 
-1. Provision the backend with Python dependencies, system Tesseract plus required language models, OpenCV runtime libraries, HTTPS, and a durable data directory.
-2. Set backend environment variables from `backend/.env.example`:
-   - `BRANDGUARD_DATA_DIR` to the durable mount.
-   - `BRANDGUARD_PUBLIC_URL` to the public API origin, without a trailing slash.
-   - `BRANDGUARD_FRONTEND_URL` to the public frontend origin, without a trailing slash.
-   - `BRANDGUARD_ALLOWED_ORIGINS` to the exact frontend origin.
-   - `BRANDGUARD_REVIEWER_TOKEN` as a secret in the hosting dashboard.
-3. Confirm `GET /api/health` (liveness/diagnostics) and `GET /api/ready` (readiness; requires Tesseract and English OCR) before building the frontend.
-4. Build the static frontend with `VITE_API_BASE_URL` set to the public API origin. Never put reviewer tokens or private API keys in a `VITE_*` variable.
-5. The frontend is already publicly reachable on Vercel. Rebuild/redeploy it only after confirming the Render API URL, backend health and CORS. Do not replace a working deployment with a localhost-configured build.
+## Local development
+
+From the repository root, start the frontend:
+
+```powershell
+npm ci
+$env:VITE_API_BASE_URL = 'http://127.0.0.1:8000'
+npm run dev
+```
+
+In a second PowerShell window:
+
+```powershell
+py -m venv backend/.venv
+backend/.venv/Scripts/Activate.ps1
+python -m pip install -r backend/requirements.txt
+$env:BRANDGUARD_ALLOWED_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173'
+Set-Location backend
+python -m uvicorn main:app --host 127.0.0.1 --port 8000
+```
+
+Open the Vite URL printed by the frontend. Local API docs are at `http://127.0.0.1:8000/docs`.
 
 ## Post-deployment acceptance checks
 
-Run these from a device/network outside the hosting environment; localhost and LAN tests are not substitutes:
+Run these from a device/network outside the hosting environment. A successful health endpoint is necessary but not sufficient.
 
-- Open the public frontend over HTTPS on desktop and mobile.
-- Confirm `/api/health` returns diagnostics and `/api/ready` returns HTTP 200 with English OCR available; check optional language models separately.
-- Upload a generated test poster. Confirm the UI polls the job to completion, shows OCR and module states, and does not label unavailable evidence/price/food sources as verified.
-- Upload a short generated video. Confirm timestamped sampled-frame findings are visible; audio remains `NOT TESTED` unless transcription is explicitly configured.
-- Create a Trust Passport and confirm the public submission is `NEEDS REVIEW`, risk `0`, reviewer `UNASSIGNED`.
-- Verify the passport by scanning its QR using a second device on mobile data. Confirm the QR URL is public HTTPS and returns the same record.
-- Confirm unauthenticated reviewer listing/update requests are denied; authorized reviewer actions work only with the backend secret.
-- Check the unified report QR opens `/#/verify/<report-id>` and the report endpoint returns only the intended public fields.
-- Re-check CORS, redirect/private-address rejection in website truth checking, logs, storage persistence after restart, and backup/restore behavior.
+1. Open the public frontend over HTTPS on desktop and mobile.
+2. Confirm `GET /api/health` returns runtime diagnostics and `GET /api/ready` returns readiness with English OCR available. Check optional language models separately.
+3. Upload a generated test poster. Confirm the UI polls the job to completion, shows OCR and module states, and does not label unavailable evidence, price or food sources as verified.
+4. Upload a short generated video. Confirm timestamped sampled-frame findings are visible. Audio must remain untranscribed unless an approved speech-to-text service is configured.
+5. Supply evidence files and confirm text overlap results remain `UNDER_REVIEW` or `INSUFFICIENT`, never automatically `SUPPORTED`.
+6. Create a Trust Passport and confirm a public submission cannot assign reviewer status, risk score or reviewer identity.
+7. Scan a public QR using a second device on mobile data. Confirm the QR URL is public HTTPS and returns the intended read-only record.
+8. Confirm unauthenticated reviewer listing/update requests are denied; authorized reviewer actions require the backend secret.
+9. Confirm a unified report QR opens `/#/verify/<report-id>` and the public endpoint returns only intended fields.
+10. Check CORS, private/loopback/reserved URL rejection in website truth checking, logs, persistence after restart, and backup/restore behavior.
 
-Until the exact Render API URL passes the external health and workflow checks, report backend deployment health and end-to-end public operation as `NOT VERIFIED`; report external QR verification as `NOT TESTED`.
+## Storage and free-tier caution
 
+Trust Passport and One-Upload reports use SQLite. Their durability depends on the host's filesystem. A sleeping service or ephemeral filesystem can lose records on restart/redeploy and is not suitable for durable records. Use a persistent mounted disk and verify backup/restore before treating records as durable. The current deployment's persistence across host restarts has not been tested.
 
-## Frontend API routing
+Free hosting may sleep after inactivity and may use ephemeral storage or impose resource limits. Treat the current service as a demonstration deployment unless persistence, uptime and recovery have been verified. Check the hosting provider's current plan terms before making production commitments.
 
-The Vite frontend uses `VITE_API_BASE_URL` when supplied. If omitted, production builds use same-origin relative API paths (served through the `/api/*` rewrite in `vercel.json`); local development defaults to `http://127.0.0.1:8000`. If the backend is hosted separately (for example, a dedicated Render service), set `VITE_API_BASE_URL` to that service's public HTTPS origin in the Vercel Production environment and redeploy the frontend. Never set this to localhost in a public deployment.
+## Current verification boundary
 
-## Dependency consistency
+**Verified on 2026-11-24:** public frontend page rendering; Render backend `/api/health`; Render backend `/api/ready`; Tesseract version and installed language-model inventory; optional Tavily/Gemini configuration status.
 
-The repository-root `requirements.txt` is the Vercel/root deployment dependency set; `backend/requirements.txt` is the backend container dependency set. Keep their application package versions aligned. Both use the headless OpenCV wheel to avoid GUI dependencies in hosted Linux environments. The backend Dockerfile installs Tesseract and its language data separately from Python packages.
+**Not verified in this check:** complete public upload-to-report workflows; public QR scanning from an external device; database persistence after host restart; backup/restore; production CORS from all client origins; live Tavily/Gemini provider calls; accessibility certification; penetration testing; production security certification.
+
+Do not turn an endpoint health result into a claim that all application features have passed production testing.
