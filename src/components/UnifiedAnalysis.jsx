@@ -164,11 +164,8 @@ function UnifiedAnalysis({ onNavigate }) {
                 {module.id === 'proof_claim' && module.result?.claims?.length > 0 && (
                   <button type="button" className="text-button" onClick={openEvidence}>Open these claims in Evidence Verification</button>
                 )}
-                {module.id === 'improved_poster' && module.status === 'SKIPPED' && (
-                  <button type="button" className="text-button" onClick={() => onNavigate('generator')}>Open AI Poster Generator to edit verified copy</button>
-                )}
                 {module.result && (
-                  <details className="analysis-module-details">
+                  <details open className="analysis-module-details">
                     <summary>View module details</summary>
                     <pre>{JSON.stringify(module.result, null, 2)}</pre>
                   </details>
