@@ -14,6 +14,7 @@ const MODULE_STATUS_LABELS = {
 function UnifiedAnalysis({ onNavigate }) {
   const [file, setFile] = useState(null)
   const [evidenceFiles, setEvidenceFiles] = useState([])
+  const [correctedFile, setCorrectedFile] = useState(null)
   const [preview, setPreview] = useState('')
   const [job, setJob] = useState(null)
   const [error, setError] = useState('')
@@ -47,15 +48,15 @@ function UnifiedAnalysis({ onNavigate }) {
     throw new Error('Analysis is taking longer than expected. You can retry by starting a new analysis.')
   }
 
-  async function analyze(event) {
+  async function analyze(event, revisionOf = '', selectedFile = file) {
     event.preventDefault()
     if (requestInFlightRef.current) return
     setError('')
-    if (!file) {
+    if (!selectedFile) {
       setError('Choose one poster image or video first.')
       return
     }
-    if (!(file.type.startsWith('image/') || file.type.startsWith('video/'))) {
+    if (!(selectedFile.type.startsWith('image/') || selectedFile.type.startsWith('video/'))) {
       setError('Choose a supported image or video file.')
       return
     }
@@ -64,7 +65,8 @@ function UnifiedAnalysis({ onNavigate }) {
     setLoading(true)
     try {
       const form = new FormData()
-      form.append('file', file)
+      form.append('file', selectedFile)
+      if (revisionOf) form.append('revision_of', revisionOf)
       evidenceFiles.forEach((evidenceFile) => form.append('evidence_files', evidenceFile))
       const settings = JSON.parse(localStorage.getItem('brandguard-settings') || '{}')
       form.append('languages', settings.defaultLanguage || 'eng')
@@ -86,6 +88,7 @@ function UnifiedAnalysis({ onNavigate }) {
   }
 
   const report = job?.report
+  const improvement = report?.improvement_report
   const modules = job?.modules || []
   const statusClass = (status) => `analysis-status analysis-status-${String(status || '').toLowerCase().replaceAll('_', '-')}`
 
@@ -145,6 +148,45 @@ function UnifiedAnalysis({ onNavigate }) {
             {report?.risk_summary && <span className={statusClass('COMPLETED')}>Risk: {report.risk_summary.replaceAll('_', ' ')}</span>}
           </div>
 
+
+          {improvement && (
+            <section className="evaluator-card improvement-report-card">
+              <div className="analysis-module-heading">
+                <div><span className="ocr-region-kicker">CONSOLIDATED REPORT</span><h2>{improvement.title}</h2></div>
+                <button type="button" className="primary-button" onClick={() => window.print()}>Download / Save PDF</button>
+              </div>
+              <p>{improvement.summary}</p>
+              {improvement.risk_summary && <p><strong>Risk signal:</strong> {improvement.risk_summary}</p>}
+              {improvement.sections?.map((section) => (
+                <section key={section.title}>
+                  <h3>{section.title}</h3>
+                  {section.checks.map((check) => (
+                    <article className="analysis-module-card" key={check.feature}>
+                      <div className="analysis-module-heading"><strong>{check.feature}</strong><span className={statusClass(check.status)}>{MODULE_STATUS_LABELS[check.status] || check.status}</span></div>
+                      {check.message && <p>{check.message}</p>}
+                      {check.findings?.length > 0 && <ul>{check.findings.map((finding, index) => <li key={index}>{finding}</li>)}</ul>}
+                    </article>
+                  ))}
+                </section>
+              ))}
+              {improvement.action_plan?.length > 0 && <section><h3>Priority action plan</h3><ol>{improvement.action_plan.map((item, index) => <li key={index}><strong>{item.priority}: {item.action}</strong><p>{item.reason}</p><small>Source: {item.source}</small></li>)}</ol></section>}
+              {improvement.limitations?.length > 0 && <section><h3>Checks needing attention</h3><ul>{improvement.limitations.map((item, index) => <li key={index}><strong>{item.feature} — {item.status}:</strong> {item.message}</li>)}</ul></section>}
+              <p className="tool-note">{improvement.disclaimer}</p>
+            </section>
+          )}
+          {report?.verification && (
+            <section className="evaluator-card">
+              <h3>Corrected advertisement and re-analysis</h3>
+              <p>Make corrections in your preferred editor, then upload the corrected poster here. BrandGuard will run the full analysis again and link the new report to this original report.</p>
+              <input type="file" accept="image/png,image/jpeg" onChange={(event) => setCorrectedFile(event.target.files?.[0] || null)} />
+              {correctedFile && <p>Selected corrected poster: <strong>{correctedFile.name}</strong></p>}
+              <button type="button" className="primary-button" disabled={!correctedFile || loading} onClick={() => analyze({ preventDefault() {} }, report.verification.id, correctedFile)}>
+                {loading ? 'Re-analysing corrected poster…' : 'Upload corrected poster & re-analyse'}
+              </button>
+              {report.revision_of && <p>Revision of previous report: <code>{report.revision_of}</code></p>}
+            </section>
+          )}
+
           <div className="analysis-module-list">
             {modules.map((module) => (
               <article className="analysis-module-card" key={module.id}>
@@ -165,7 +207,7 @@ function UnifiedAnalysis({ onNavigate }) {
                   <button type="button" className="text-button" onClick={openEvidence}>Open these claims in Evidence Verification</button>
                 )}
                 {module.result && (
-                  <details open className="analysis-module-details">
+                  <details className="analysis-module-details">
                     <summary>View module details</summary>
                     <pre>{JSON.stringify(module.result, null, 2)}</pre>
                   </details>
