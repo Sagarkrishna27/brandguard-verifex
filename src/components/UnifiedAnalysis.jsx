@@ -184,6 +184,30 @@ function UnifiedAnalysis({ onNavigate }) {
                 {loading ? 'Re-analysing corrected poster…' : 'Upload corrected poster & re-analyse'}
               </button>
               {report.revision_of && <p>Revision of previous report: <code>{report.revision_of}</code></p>}
+              {report.revision_comparison && (
+                <section className="revision-comparison">
+                  <h4>Original vs corrected poster</h4>
+                  <p>{report.revision_comparison.note}</p>
+                  <div className="analysis-module-card">
+                    <strong>Findings no longer returned ({report.revision_comparison.resolved_findings?.length || 0})</strong>
+                    {report.revision_comparison.resolved_findings?.length
+                      ? <ul>{report.revision_comparison.resolved_findings.map((item, index) => <li key={index}>{item}</li>)}</ul>
+                      : <p>No textual findings disappeared between these reports.</p>}
+                  </div>
+                  <div className="analysis-module-card">
+                    <strong>Findings still present ({report.revision_comparison.remaining_findings?.length || 0})</strong>
+                    {report.revision_comparison.remaining_findings?.length
+                      ? <ul>{report.revision_comparison.remaining_findings.map((item, index) => <li key={index}>{item}</li>)}</ul>
+                      : <p>No exact matching findings were returned.</p>}
+                  </div>
+                  <div className="analysis-module-card">
+                    <strong>New findings ({report.revision_comparison.new_findings?.length || 0})</strong>
+                    {report.revision_comparison.new_findings?.length
+                      ? <ul>{report.revision_comparison.new_findings.map((item, index) => <li key={index}>{item}</li>)}</ul>
+                      : <p>No new textual findings were returned.</p>}
+                  </div>
+                </section>
+              )}
             </section>
           )}
 
