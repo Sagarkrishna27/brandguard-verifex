@@ -1,3 +1,4 @@
+# Runs lightweight build and syntax checks for the advertisement improvement workflow.
 name: BrandGuard workflow checks
 
 on:
