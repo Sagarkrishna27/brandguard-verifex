@@ -1,6 +1,10 @@
-const configuredBase = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+const configuredBase = import.meta.env.VITE_API_BASE_URL?.trim()
 
-export const API_BASE_URL = configuredBase.replace(/\/$/, '')
+// In production, an unset API origin uses the same-origin /api rewrite.
+// Never silently send a judge's browser to its own localhost.
+const fallbackBase = import.meta.env.PROD ? '' : 'http://127.0.0.1:8000'
+
+export const API_BASE_URL = (configuredBase || fallbackBase).replace(/\/$/, '')
 export const apiUrl = (path) => `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`
 
 let requestSequence = 0

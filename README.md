@@ -43,20 +43,20 @@ $env:BRANDGUARD_ALLOWED_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173'
 python -m uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-Run the backend commands from the `backend` directory. Open the Vite URL printed by the frontend. The health endpoint is `http://127.0.0.1:8000/api/health`; interactive API docs are at `/docs`.
+Run the backend commands from the `backend` directory. Open the Vite URL printed by the frontend. The liveness/diagnostics endpoint is `http://127.0.0.1:8000/api/health`; the readiness endpoint is `/api/ready` (HTTP 503 means required OCR runtime is not ready). Interactive API docs are at `/docs`.
 
 For a LAN demo, set Vite's `--host 0.0.0.0`, run the backend with `--host 0.0.0.0`, use the computer's LAN IP in `VITE_API_BASE_URL`, and include the frontend origin in `BRANDGUARD_ALLOWED_ORIGINS`. This does not make the application publicly reachable or provide HTTPS.
 
 ## Configuration
 
-- Root `.env` / build environment: `VITE_API_BASE_URL` is the backend origin. Vite embeds this value at build time; use the actual public HTTPS API URL only after deployment.
+- Root `.env` / build environment: `VITE_API_BASE_URL` is the backend origin. Vite embeds this value at build time. In production, if it is intentionally unset, the frontend uses the same-origin `/api` rewrite; in local development it defaults to `http://127.0.0.1:8000`. Set the actual public HTTPS API origin when using a separately hosted backend.
 - Backend environment: copy `backend/.env.example` as a starting point. Set CORS to exact trusted frontend origins. Keep `BRANDGUARD_REVIEWER_TOKEN` server-side only.
 - `BRANDGUARD_PUBLIC_URL` controls the backend URL embedded in Trust Passport QR codes.
 - `BRANDGUARD_FRONTEND_URL` controls whether a unified report receives a public HTTPS verification QR. Its public route is `/#/verify/<report-id>`.
 - `BRANDGUARD_DATA_DIR` selects where SQLite databases are stored. Use a durable mounted volume if records must survive service restarts.
 - Never commit `.env` files or expose backend secrets through `VITE_*` variables.
 
-Example files contain local defaults and placeholders only. Public deployment and public QR verification have not been tested.
+Example files contain local defaults and placeholders only. The public Vercel frontend at https://brandguard-seven.vercel.app/ was opened and its BrandGuard dashboard rendered on 2026-11-22. The production backend API origin could not be confirmed from this repository. A probe of the frontend origin at /api/health returned HTTP 500; this is not a verified Render API health check. Public QR verification remains NOT TESTED.
 
 ## API highlights
 
@@ -86,13 +86,13 @@ Push-Location backend
 Pop-Location
 ```
 
-Passing unit tests do not establish OCR accuracy, legal compliance or deepfake-detection performance. The final verification report distinguishes direct browser/API checks from checks not performed.
+Passing unit tests do not establish OCR accuracy, legal compliance or deepfake-detection performance. Use `/api/health` for liveness/diagnostics and `/api/ready` for readiness before a demo. The final verification report distinguishes direct browser/API checks from checks not performed.
 
 ## Honest limitations
 
 - OCR may misread small, blurry, stylized or multilingual text; review extracted text and confidence.
 - Video analysis samples frames and can miss brief text between samples. Audio transcription is not configured.
-- Evidence matching does not prove document authenticity, scope, issuer, legal compliance or claim truth. PDF extraction is not supported reliably.
+- Evidence matching does not prove document authenticity, scope, issuer, legal compliance or claim truth. Selectable-text PDFs can be parsed with `pypdf` (bounded extraction); scanned PDFs without a text layer still require OCR, and extraction/layout accuracy is not guaranteed.
 - Price/discount and food/regulatory claims require authoritative comparison sources that are not configured in the demo.
 - Website truth checking is a text comparison, not proof that a claim is false. Private, loopback and reserved destinations are rejected.
 - Legal compliance screening currently uses keyword-based preliminary indicators; it is not a complete legal assessment or legal advice. Human review is required.
@@ -100,4 +100,4 @@ Passing unit tests do not establish OCR accuracy, legal compliance or deepfake-d
 - Fake-review, manipulation, risk and completeness results are heuristic indicators for human review.
 - The poster output is locally composed and deterministic; no third-party generative AI is configured.
 - SQLite and uploaded report persistence depend on the selected host's durable storage. A free sleeping/ephemeral host is not suitable for durable Trust Passport/report records.
-- No public deployment, external QR scan, accessibility certification or production security certification has been completed.
+- The Vercel frontend is publicly reachable at https://brandguard-seven.vercel.app/. Production backend API health and end-to-end frontend-to-backend operation, external QR scanning, accessibility certification and production security certification remain unverified.
