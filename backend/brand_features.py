@@ -624,8 +624,8 @@ def compute_risk_alert(claims, manipulation, disclaimer, ocr_confidence):
 # FEATURE 11 - AI AD IMPROVEMENT ASSISTANT (RULE-BASED)
 # --------------------------------------------------
 
-def suggest_improvements(text):
-    """Real rule-based copy suggestions. Every rule is explainable."""
+def suggest_improvements(text, image=None):
+    """Rule-based copy checks plus optional Gemini text/image context."""
     if not isinstance(text, str) or not text.strip():
         return {"success": False, "message": "Advertisement text is required."}
 
@@ -719,16 +719,26 @@ def suggest_improvements(text):
         api_key = os.getenv("GEMINI_API_KEY")
         if api_key:
             client = genai.Client(api_key=api_key)
+            prompt = (
+                "Review this advertisement using the supplied OCR copy and, "
+                "when present, the original poster image. Identify specific "
+                "truthful improvements to claim wording, offer conditions, "
+                "disclaimers, readability and visual hierarchy. Only describe "
+                "details actually visible or stated. Do not invent evidence, "
+                "prices, certifications or legal violations. Return JSON with "
+                "a 'suggestions' array; each item has issue, suggestion and rule. "
+                "Ad text:\\n" + text[:12000]
+            )
+            contents = [prompt]
+            if image is not None:
+                image_buffer = io.BytesIO()
+                image.convert("RGB").save(image_buffer, format="JPEG", quality=88)
+                contents.insert(0, types.Part.from_bytes(
+                    data=image_buffer.getvalue(), mime_type="image/jpeg"
+                ))
             response = client.models.generate_content(
-                model="gemini-3.5-flash-lite",
-                contents=(
-                    "Review this advertisement copy and suggest specific, "
-                    "truthful improvements to clarity, readability, claim "
-                    "wording and disclaimers. Do not invent evidence or "
-                    "certifications. Return JSON with a 'suggestions' array. "
-                    "Each item must contain issue, suggestion and rule. "
-                    "Ad text:\\n" + text[:12000]
-                ),
+                model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
+                contents=contents,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     temperature=0.2,
@@ -748,17 +758,21 @@ def suggest_improvements(text):
                     and all(item.get(k) for k in ("issue", "suggestion", "rule"))
                 ]
             gemini_status = "COMPLETED"
-    except Exception:
+    except Exception as error:
         gemini_status = "UNAVAILABLE"
+        gemini_error = f"{type(error).__name__}: {str(error)[:220]}"
+    else:
+        gemini_error = None
 
     return {
         "success": True,
-        "assistant_type": "Rule-based review with Gemini contextual suggestions",
+        "assistant_type": "Rule-based review with Gemini text/image contextual suggestions",
         "suggestions": suggestions,
         "suggestion_count": len(suggestions),
         "gemini_suggestions": gemini_suggestions,
         "gemini_suggestion_count": len(gemini_suggestions),
         "gemini_status": gemini_status,
+        "gemini_error": gemini_error,
         "note": ("Copy-review suggestions for a human to accept or reject. "
                  "Nothing is changed automatically."),
     }
