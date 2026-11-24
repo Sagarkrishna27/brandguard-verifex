@@ -101,7 +101,6 @@ IMAGE_MODULES = [
     ("legal_compliance", "Legal Compliance Intelligence"),
     ("improvement", "Advertisement Improvement Assistant"),
     ("completeness", "Advertisement Completeness Review"),
-    ("improved_poster", "Improved Advertisement Output"),
     ("verification_report", "Verification Report and QR"),
 ]
 
@@ -124,7 +123,6 @@ VIDEO_MODULES = [
     ("legal_compliance", "Legal Compliance Intelligence"),
     ("improvement", "Advertisement Improvement Assistant"),
     ("completeness", "Advertisement Completeness Review"),
-    ("improved_poster", "Improved Summary Poster"),
     ("verification_report", "Verification Report and QR"),
 ]
 
@@ -670,9 +668,6 @@ def _run_image_job(job_id, row):
         "manipulation_risk": (manipulation or {}).get("risk_level"),
         "note": "Summary of existing checks only; not an approval or legal compliance score.",
     })
-    outcomes["improved_poster"] = _run_module(job_id, "improved_poster", lambda: _skip(
-        "The OCR text may be uncertain and the uploaded artwork is not preserved by the local composition engine. Review and edit verified copy in AI Poster Generator before creating a separate poster."
-    ))
     return {"ocr": ocr_data, "text": text, "claims": claims, "outcomes": outcomes}
 
 
@@ -768,9 +763,8 @@ def _run_video_job(job_id, row):
         _run_module(job_id, "evaluation", lambda: {"frames_analyzed": video_data.get("frames_analyzed"),
                                                    "timestamped_findings": len(frame_findings),
                                                    "note": "Frame-sampled review only; no compliance verdict."})
-        _run_module(job_id, "improved_poster", lambda: _skip("A summary poster needs human selection of verified wording and is not generated automatically from uncertain frame OCR."))
         return {"video": video_data, "text": frame_text, "claims": risk_claims}
-    for module_id in ("frame_ocr_claims", "ocr_regions", "critical_values", "claim_evidence", "proof_claim", "disclaimer", "qr", "manipulation", "media_forensics", "evaluation", "risk", "price_discount", "website_truth", "food_verification", "legal_compliance", "improvement", "completeness", "improved_poster"):
+    for module_id in ("frame_ocr_claims", "ocr_regions", "critical_values", "claim_evidence", "proof_claim", "disclaimer", "qr", "manipulation", "media_forensics", "evaluation", "risk", "price_discount", "website_truth", "food_verification", "legal_compliance", "improvement", "completeness"):
         _run_module(job_id, module_id, lambda: _skip("Depends on successful video decoding and frame sampling."))
     return {"video": None, "text": "", "claims": []}
 
