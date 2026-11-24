@@ -563,6 +563,7 @@ def _public_report(report):
         "improvement_report": report.get("improvement_report"),
         "revision_of": report.get("revision_of"),
         "revision_number": report.get("revision_number", 1),
+        "poster_data_url": report.get("poster_data_url"),
         "limitations": [
             "A report ID identifies a stored analysis record; cryptographic report-integrity verification is not implemented, and it does not certify claim truth or legal compliance.",
             "OCR and sampled video frames can miss or misread content.",
@@ -868,6 +869,7 @@ def _finalize_job(job_id, row, media_kind, analysis):
         "improvement_report": _build_improvement_report(modules, (risk_module.get("result") or {}).get("alert_level") or (risk_module.get("result") or {}).get("risk_level") or (risk_module.get("result") or {}).get("overall_risk")),
         "revision_of": row["revision_of"] if "revision_of" in row.keys() else None,
         "revision_number": 2 if ("revision_of" in row.keys() and row["revision_of"]) else 1,
+        "poster_data_url": ("data:" + row["media_type"] + ";base64," + base64.b64encode(Path(row["temp_path"]).read_bytes()).decode("ascii")) if media_kind == "image" else None,
         "ocr": analysis.get("ocr"),
         "video": analysis.get("video"),
         "claims": analysis.get("claims", []),
