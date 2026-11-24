@@ -825,6 +825,24 @@ def readiness():
     }
 
 
+@app.get("/api/gemini-status")
+def gemini_status():
+    """Safe Gemini configuration diagnostic; never returns credentials."""
+    configured = bool(os.getenv("GEMINI_API_KEY"))
+    try:
+        import google.genai  # noqa: F401
+        sdk_installed = True
+    except Exception:
+        sdk_installed = False
+    return {
+        "configured": configured,
+        "sdk_installed": sdk_installed,
+        "model": os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
+        "status": "READY" if configured and sdk_installed else "NOT_CONFIGURED",
+        "note": "This checks server configuration only; a live generation request is needed to verify API access."
+    }
+
+
 @app.get("/api/languages")
 def get_languages():
 
@@ -1485,7 +1503,7 @@ def run_gemini_ocr(image_bytes: bytes, mime_type: str = "image/jpeg"):
     try:
         client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
-            model="gemini-3.5-flash-lite",
+            model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
             contents=[
                 types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
                 (
