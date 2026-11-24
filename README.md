@@ -1,31 +1,77 @@
 # BrandGuard
 
-BrandGuard is a React + Vite frontend and Python + FastAPI service for reviewing advertising claims, poster text, video frames, evidence and trust records. It is a human-review aid, not a legal-compliance certificate or automated approval system.
+**BrandGuard** is an advertising-review workspace built by **Team Verifex** for CodeZen. It helps reviewers inspect poster and video advertisements, extract claims, compare supplied evidence, identify potential risk signals, and prepare clearer creative. It is a decision-support tool: it does not certify that an advertisement or claim is true, legally compliant, safe, or approved.
 
-## Current capabilities
+- **Live application:** https://brandguard-seven.vercel.app/
+- **Backend API:** https://brandguard-backend-fxhr.onrender.com/
+- **Interactive API docs:** https://brandguard-backend-fxhr.onrender.com/docs
+- **Source repository:** https://github.com/Sagarkrishna27/brandguard-verifex
+- **Deployment and test notes:** [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) · [FINAL_VERIFICATION_REPORT.md](./FINAL_VERIFICATION_REPORT.md)
 
-- Existing Tesseract OCR passes, multilingual selection, OCR region grouping and confidence presentation.
-- Claim analysis, critical-value review, disclaimer/QR/manipulation checks, risk alerts, website truth checks, Fake Review Analysis, Brand DNA and copy-improvement guidance.
-- Media-forensics triage reports face-region detection as `NOT_CONFIGURED` when the installed OpenCV build lacks its Haar API or cascade data; it does not treat face detection as deepfake detection.
-- Evidence matching for extracted claims, with missing, insufficient and human-review states. Text files are decoded as UTF-8, images are OCRed, and selectable PDF text is extracted with `pypdf` (up to 100 pages). Scanned PDFs without a text layer need OCR. Matching does not establish authenticity, sufficiency or legal compliance.
-- Sampled video-frame OCR and timestamped claim/disclaimer findings. Audio transcription is not configured, and brief text between sampled frames may be missed.
-- One-Upload Review starts the existing applicable image/video checks and collects their results in a local report. Unsupported external checks remain clearly marked unable to verify or skipped.
-- Trust Passport image hashes, QR generation and public read-only record verification. Public submissions are always `NEEDS REVIEW`; only a server-authorized reviewer can set an official outcome.
-- AI Poster Generator is a deterministic local composition engine with editable copy/style/size/theme fields and a human approval gate before download. It is not third-party generative AI.
-- Settings stores browser-local display/language preferences only; it does not grant reviewer permissions or store credentials.
+## What BrandGuard includes
 
-See [FINAL_VERIFICATION_REPORT.md](./FINAL_VERIFICATION_REPORT.md) for the actual test matrix and [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) for the deployment prerequisites and free-tier limitations.
+### Unified poster and video review
 
-## Requirements
+The One-Upload Review workflow accepts one poster image or video, queues the applicable checks, tracks each module state, and produces a consolidated report. A module can finish as `COMPLETED`, `UNABLE_TO_VERIFY`, `SKIPPED`, or `FAILED`; unavailable evidence is not silently converted into a successful verification.
 
-- Node.js compatible with the Vite version in `package.json`.
-- Python 3.10+ and the packages in `backend/requirements.txt`.
-- Tesseract OCR installed separately, with the language packs you plan to use.
-- On Windows, the current backend detects `C:\Program Files\Tesseract-OCR\tesseract.exe`; otherwise Tesseract must be on `PATH`.
+The image workflow includes multilingual OCR, OCR regions, critical values, claim analysis, evidence and Proof & Claim review, disclaimers, QR detection, manipulation/forensics triage, evaluation, risk, price/discount and food checks, preliminary legal screening, copy improvement, completeness review, and report generation. The video workflow applies corresponding checks to sampled frames and a video timeline.
+
+### Feature inventory
+
+The following describes the implemented product behavior. Source-dependent or heuristic checks are not proof of a claim.
+
+1. **Unified poster and video analysis** — one upload starts applicable checks and consolidates their states/results.
+2. **Multilingual OCR** — Tesseract OCR supports English and 13 Indian-language models: Hindi, Kannada, Tamil, Telugu, Malayalam, Bengali, Gujarati, Marathi, Punjabi, Odia, Assamese, Urdu and Sanskrit. The live backend currently reports all 14 language models installed.
+3. **OCR region analysis** — groups extracted text into poster regions such as headline, offer/promo code, conditions and footer.
+4. **Critical Value Review** — highlights important values such as prices, discounts, percentages, dates and offer details for review.
+5. **Advertisement Claim Analysis** — identifies claim wording and categories using the existing claim-analysis rules.
+6. **Claim Evidence Analysis** — compares extracted claims with documents supplied by the reviewer and reports missing, insufficient or review-required evidence.
+7. **Proof & Claim** — connects claims to the evidence required to substantiate them; text overlap is only a triage signal and never automatically marks evidence as supported.
+8. **Disclaimer Detection** — flags disclaimer-like wording for a human readability and prominence check.
+9. **QR Code Detection** — detects and decodes QR codes in supported images and sampled video frames.
+10. **Image Manipulation Detection** — applies image-forensics heuristics; results are indicators, not proof of editing.
+11. **Multimodal Media Forensics** — provides image/video forensic triage and optional face-region analysis. It is not a trained deepfake classifier; synthetic voice/face classification and audio transcription are not configured.
+12. **Advertisement Evaluation** — consolidates applicable review findings for human assessment.
+13. **Risk Alerts** — summarizes signals into heuristic risk indicators, not a calibrated certification.
+14. **AI Legal Compliance Intelligence** — preliminary keyword/rule-based screening with references to selected ASCI and CCPA guidance; it is not a complete legal assessment or legal advice.
+15. **Autonomous Advertisement Investigation** — includes optional Tavily public-source search and Gemini preliminary source assessment. Both providers are currently reported as not configured by the live readiness endpoint, so live research is unavailable in the current deployment until valid server-side keys are configured.
+16. **Advertisement Improvement Assistant** — provides rule-based, editable copy suggestions; it does not silently change the original advertisement.
+17. **Advertisement Completeness Review** — flags potentially missing information for human review.
+18. **Price and Discount Verification** — identifies price/offer details and can report when authoritative comparison data is unavailable; no authoritative price-history/comparison source is configured in the current demo.
+19. **Website Truth Checker** — compares advertisement text with text retrieved from a supplied website. This is not proof that a claim is false or true. Private, loopback and reserved destinations are rejected.
+20. **Food Advertisement Verification** — identifies food-related claims and the evidence they may need. Official FSSAI sources, lab reports and accreditation records are not automatically supplied by the current demo.
+21. **Shareable verification reports and QR codes** — generates report/Trust Passport records and QR links. Public records are read-only and require human review; external QR scanning and durable persistence across host restarts have not been verified.
+
+**Additional workspace tools:** Fake Review Analysis uses linguistic heuristics; Brand DNA creates a statistical profile from supplied scan history; the AI Poster Generator creates a deterministic, locally composed poster with editable copy/style/size/theme and a human approval step. The poster generator is not connected to a third-party generative-image service.
+
+## Architecture and data flow
+
+- **Frontend:** React with Vite, deployed at Vercel.
+- **Backend:** Python with FastAPI, deployed at Render.
+- **Communication:** HTTPS REST API requests. The frontend reads `VITE_API_BASE_URL`; its production fallback is the Render API origin above, while local development defaults to `http://127.0.0.1:8000`.
+- **OCR:** Tesseract through `pytesseract`, with language selection, preprocessing, multiple OCR passes, word confidence/coordinates and grouped regions.
+- **Image/video processing:** Pillow and OpenCV; video review samples frames and attaches timestamps to findings.
+- **Evidence extraction:** text decoding, OCR for image evidence, and bounded selectable-text PDF extraction using `pypdf`.
+- **Storage:** SQLite for analysis jobs/reports and Trust Passport records. Durable records require a persistent mounted data directory configured with `BRANDGUARD_DATA_DIR`.
+- **Optional integrations:** Tavily and Gemini are server-side optional integrations. The current live readiness response reports both as not configured. Never expose provider keys in frontend variables or commit them.
+- **QR/report flow:** the backend creates report records and QR URLs; public report routes expose limited read-only data. Report IDs are not cryptographic proof of report integrity.
+
+### Main unified-analysis endpoints
+
+- `POST /api/unified-analysis` — upload an image or video and create a job.
+- `GET /api/unified-analysis/{job_id}` — retrieve job progress and module results.
+- `GET /api/analysis-reports/{report_id}` — retrieve the limited public report.
+- `GET /api/health` — liveness and runtime diagnostics.
+- `GET /api/ready` — readiness check for required OCR runtime.
+- `/docs` — interactive FastAPI documentation.
+
+Other analyzer endpoints include `/api/ocr`, `/api/analyze-claims`, `/api/verify-claims-evidence`, `/api/analyze-video`, `/api/detect-disclaimer`, `/api/detect-qr`, `/api/manipulation-check`, `/api/media-forensics`, `/api/truth-check`, `/api/fake-reviews`, `/api/brand-dna`, `/api/risk-alert`, `/api/improve-ad`, and `/api/generate-poster`. See `/docs` for the deployed API schema.
 
 ## Run locally (Windows PowerShell)
 
-From the project root, install frontend dependencies and start Vite:
+Requirements: Node.js compatible with the Vite version in `package.json`, Python 3.10+, Tesseract installed separately, and the language packs you intend to use.
+
+From the repository root:
 
 ```powershell
 npm ci
@@ -33,71 +79,74 @@ $env:VITE_API_BASE_URL = 'http://127.0.0.1:8000'
 npm run dev
 ```
 
-In another PowerShell window:
+In another PowerShell window, from the repository root:
 
 ```powershell
 py -m venv backend/.venv
 backend/.venv/Scripts/Activate.ps1
 python -m pip install -r backend/requirements.txt
 $env:BRANDGUARD_ALLOWED_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173'
+Set-Location backend
 python -m uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-Run the backend commands from the `backend` directory. Open the Vite URL printed by the frontend. The liveness/diagnostics endpoint is `http://127.0.0.1:8000/api/health`; the readiness endpoint is `/api/ready` (HTTP 503 means required OCR runtime is not ready). Interactive API docs are at `/docs`.
+Open the Vite URL printed by the frontend. Local API docs are at `http://127.0.0.1:8000/docs`.
 
-For a LAN demo, set Vite's `--host 0.0.0.0`, run the backend with `--host 0.0.0.0`, use the computer's LAN IP in `VITE_API_BASE_URL`, and include the frontend origin in `BRANDGUARD_ALLOWED_ORIGINS`. This does not make the application publicly reachable or provide HTTPS.
+On Windows, the backend also checks `C:\Program Files\Tesseract-OCR\tesseract.exe`; otherwise Tesseract must be available on `PATH`.
 
-## Configuration
+## Configuration and security
 
-- Root `.env` / build environment: `VITE_API_BASE_URL` is the backend origin. Vite embeds this value at build time. In production, if it is intentionally unset, the frontend uses the same-origin `/api` rewrite; in local development it defaults to `http://127.0.0.1:8000`. Set the actual public HTTPS API origin when using a separately hosted backend.
-- Backend environment: copy `backend/.env.example` as a starting point. Set CORS to exact trusted frontend origins. Keep `BRANDGUARD_REVIEWER_TOKEN` server-side only.
-- `BRANDGUARD_PUBLIC_URL` controls the backend URL embedded in Trust Passport QR codes.
-- `BRANDGUARD_FRONTEND_URL` controls whether a unified report receives a public HTTPS verification QR. Its public route is `/#/verify/<report-id>`.
-- `BRANDGUARD_DATA_DIR` selects where SQLite databases are stored. Use a durable mounted volume if records must survive service restarts.
-- Never commit `.env` files or expose backend secrets through `VITE_*` variables.
+- Set `VITE_API_BASE_URL` to the backend origin at frontend build time when using a different API host.
+- Configure `BRANDGUARD_ALLOWED_ORIGINS` with exact trusted frontend origins.
+- Configure `BRANDGUARD_PUBLIC_URL` and `BRANDGUARD_FRONTEND_URL` for public QR links.
+- Set `BRANDGUARD_DATA_DIR` to a durable mounted directory if report/Trust Passport records must survive restarts.
+- Set `BRANDGUARD_REVIEWER_TOKEN` only as a backend secret. It must never be sent to the browser or stored in a `VITE_*` variable.
+- Configure `TAVILY_API_KEY` and `GEMINI_API_KEY` only in backend secrets if enabling public-source investigation and optional AI workflows.
+- Never commit real `.env` files, tokens or provider keys.
 
-Example files contain local defaults and placeholders only. The public Vercel frontend at https://brandguard-seven.vercel.app/ was opened and its BrandGuard dashboard rendered on 2026-11-22. The production backend API origin could not be confirmed from this repository. A probe of the frontend origin at /api/health returned HTTP 500; this is not a verified Render API health check. Public QR verification remains NOT TESTED.
+## Testing and current live verification
 
-## API highlights
+The latest recorded repository verification run (2026-11-22) reported:
+- Frontend lint and production build passed.
+- Backend compilation passed.
+- Backend pytest suite: **29 passed**, with one Starlette/httpx deprecation warning.
+- Local unified image and video workflows completed with explicit partial/unavailable/skipped module states.
+- Local Trust Passport authorization checks rejected unauthenticated reviewer operations.
 
-Existing analyzer endpoints include `/api/ocr`, `/api/analyze-claims`, `/api/verify-claims-evidence`, `/api/analyze-video`, `/api/detect-disclaimer`, `/api/detect-qr`, `/api/manipulation-check`, `/api/truth-check`, `/api/fake-reviews`, `/api/brand-dna`, `/api/risk-alert`, `/api/improve-ad`, `/api/generate-poster`, and `/api/trust-passport/`.
+A live endpoint check on **2026-11-24** confirmed:
+- Frontend: `https://brandguard-seven.vercel.app/` rendered the BrandGuard dashboard.
+- Backend `/api/health`: `healthy`, API version `3.0.0`, Tesseract `5.5.0`; all 14 configured OCR language models were installed.
+- Backend `/api/ready`: `ready`; no missing optional language models were reported.
+- Optional integration status: `tavily_configured=false` and `gemini_configured=false`.
 
-The One-Upload Review flow uses:
-
-- `POST /api/unified-analysis` — accepts one image or video and queues the existing applicable checks.
-- `GET /api/unified-analysis/{job_id}` — returns job progress/results.
-- `GET /api/analysis-reports/{report_id}` — returns a limited, read-only public report after the job finishes.
-
-The report ID identifies a stored record; cryptographic report-integrity verification is not implemented. Public report access does not establish that claims are true.
-
-## Checks
-
-```powershell
-npm.cmd run lint
-npm.cmd run build
-backend/venv/Scripts/python.exe -m compileall -q backend
-```
-
-The frontend has lint and production-build checks. The backend test suite can be run with:
-
-```powershell
-Push-Location backend
-.\.venv\Scripts\python.exe -m pytest -q
-Pop-Location
-```
-
-Passing unit tests do not establish OCR accuracy, legal compliance or deepfake-detection performance. Use `/api/health` for liveness/diagnostics and `/api/ready` for readiness before a demo. The final verification report distinguishes direct browser/API checks from checks not performed.
+These live checks verify page rendering and API liveness/readiness, not every end-to-end user workflow. The feature-level test matrix and known limitations are recorded in [FINAL_VERIFICATION_REPORT.md](./FINAL_VERIFICATION_REPORT.md).
 
 ## Honest limitations
 
-- OCR may misread small, blurry, stylized or multilingual text; review extracted text and confidence.
+- OCR may misread small, blurry, stylized or multilingual text; review extracted text and confidence. Installed language packs do not establish recognition accuracy for every language or image.
 - Video analysis samples frames and can miss brief text between samples. Audio transcription is not configured.
-- Evidence matching does not prove document authenticity, scope, issuer, legal compliance or claim truth. Selectable-text PDFs can be parsed with `pypdf` (bounded extraction); scanned PDFs without a text layer still require OCR, and extraction/layout accuracy is not guaranteed.
+- Face-region detection is optional and may return `NOT_CONFIGURED` when the installed OpenCV build lacks the required classifier API/data. No trained deepfake model classifies synthetic faces or voices.
+- Evidence matching does not prove document authenticity, scope, issuer, legal compliance or claim truth. Selectable-text PDFs can be parsed with bounded `pypdf` extraction (up to 100 pages and 1 MB of extracted text); scanned PDFs without a text layer still require OCR. Extraction and layout accuracy are not guaranteed.
 - Price/discount and food/regulatory claims require authoritative comparison sources that are not configured in the demo.
-- Website truth checking is a text comparison, not proof that a claim is false. Private, loopback and reserved destinations are rejected.
-- Legal compliance screening currently uses keyword-based preliminary indicators; it is not a complete legal assessment or legal advice. Human review is required.
-- Autonomous Advertisement Investigation has a Tavily/Gemini integration for preliminary public-source research. Live provider operation has not been verified in the final test pass; search snippets and AI assessments are not proof. Human review is required.
+- Website truth checking is a text comparison, not proof that a claim is false or true. Private, loopback and reserved destinations are rejected.
+- Legal compliance screening uses keyword/rule-based preliminary indicators and selected references; it is not a complete legal assessment or legal advice. Human review is required.
+- Autonomous Advertisement Investigation has Tavily/Gemini integration code, but the live backend currently reports both providers as not configured. Live provider research has therefore not been verified in this deployment. Search snippets and AI assessments are not proof.
 - Fake-review, manipulation, risk and completeness results are heuristic indicators for human review.
 - The poster output is locally composed and deterministic; no third-party generative AI is configured.
-- SQLite and uploaded report persistence depend on the selected host's durable storage. A free sleeping/ephemeral host is not suitable for durable Trust Passport/report records.
-- The Vercel frontend is publicly reachable at https://brandguard-seven.vercel.app/. Production backend API health and end-to-end frontend-to-backend operation, external QR scanning, accessibility certification and production security certification remain unverified.
+- SQLite and uploaded report persistence depend on the selected host's durable storage. Persistence across host restarts and backups have not been verified.
+- External QR scanning, production CORS behavior, accessibility certification, penetration testing and production security certification have not been verified.
+- A healthy/readiness API response does not prove that every frontend-to-backend workflow works end to end.
+
+## Roadmap
+
+1. Improve multilingual OCR accuracy and layout recognition with representative labelled poster sets, including Kannada, Hindi and mixed scripts.
+2. Strengthen claim extraction and evidence matching, including document scope, dates, issuer and source quality while preserving human review.
+3. Improve image/video forensic triage and evaluate against labelled manipulated/unaltered samples.
+4. Configure and validate optional public-source investigation providers before presenting it as live.
+5. Maintain current advertising-compliance references and expand domain-specific source coverage.
+6. Validate durable storage, backups, public QR scanning, CORS and end-to-end production workflows.
+7. Expand testing across industries, languages, poster layouts and video formats.
+
+---
+
+BrandGuard is a verification assistant for advertisers, agencies and compliance teams. It helps organize review; final decisions remain with qualified humans.
