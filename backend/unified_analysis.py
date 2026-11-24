@@ -60,7 +60,8 @@ def _initialize_database():
                 modules_json TEXT NOT NULL,
                 report_json TEXT,
                 error TEXT,
-                evidence_json TEXT NOT NULL DEFAULT '[]'
+                evidence_json TEXT NOT NULL DEFAULT '[]',
+                revision_of TEXT
             )
         """)
         connection.execute("""
@@ -75,6 +76,8 @@ def _initialize_database():
             connection.execute("ALTER TABLE analysis_jobs ADD COLUMN languages TEXT NOT NULL DEFAULT 'eng'")
         if "evidence_json" not in columns:
             connection.execute("ALTER TABLE analysis_jobs ADD COLUMN evidence_json TEXT NOT NULL DEFAULT '[]'")
+        if "revision_of" not in columns:
+            connection.execute("ALTER TABLE analysis_jobs ADD COLUMN revision_of TEXT")
         connection.commit()
 
 
@@ -557,6 +560,9 @@ def _public_report(report):
         "overall_status": report["overall_status"],
         "risk_summary": report.get("risk_summary"),
         "modules": public_modules,
+        "improvement_report": report.get("improvement_report"),
+        "revision_of": report.get("revision_of"),
+        "revision_number": report.get("revision_number", 1),
         "limitations": [
             "A report ID identifies a stored analysis record; cryptographic report-integrity verification is not implemented, and it does not certify claim truth or legal compliance.",
             "OCR and sampled video frames can miss or misread content.",
@@ -860,6 +866,8 @@ def _finalize_job(job_id, row, media_kind, analysis):
         "risk_summary": (risk_module.get("result") or {}).get("alert_level") or (risk_module.get("result") or {}).get("risk_level") or (risk_module.get("result") or {}).get("overall_risk"),
         "modules": modules,
         "improvement_report": _build_improvement_report(modules, (risk_module.get("result") or {}).get("alert_level") or (risk_module.get("result") or {}).get("risk_level") or (risk_module.get("result") or {}).get("overall_risk")),
+        "revision_of": row["revision_of"] if "revision_of" in row.keys() else None,
+        "revision_number": 2 if ("revision_of" in row.keys() and row["revision_of"]) else 1,
         "ocr": analysis.get("ocr"),
         "video": analysis.get("video"),
         "claims": analysis.get("claims", []),
@@ -900,6 +908,7 @@ async def start_unified_analysis(
     file: UploadFile = File(...),
     languages: str = Form("eng"),
     evidence_files: list[UploadFile] = File(default=[]),
+    revision_of: str = Form(default=""),
 ):
     media_type = file.content_type or ""
     if not (media_type.startswith("image/") or media_type.startswith("video/")):
@@ -973,8 +982,8 @@ async def start_unified_analysis(
     created_at = _now()
     with _connect() as connection:
         connection.execute(
-        "INSERT INTO analysis_jobs (id, report_id, created_at, filename, media_type, languages, temp_path, status, modules_json, evidence_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (job_id, report_id, created_at, Path(file.filename or "advertisement").name, media_type, selected_languages, temp_path, "QUEUED", json.dumps(modules), json.dumps(evidence_documents, ensure_ascii=False)),
+        "INSERT INTO analysis_jobs (id, report_id, created_at, filename, media_type, languages, temp_path, status, modules_json, evidence_json, revision_of) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (job_id, report_id, created_at, Path(file.filename or "advertisement").name, media_type, selected_languages, temp_path, "QUEUED", json.dumps(modules), json.dumps(evidence_documents, ensure_ascii=False), revision_of.strip() or None),
         )
         connection.commit()
     background_tasks.add_task(_process_job, job_id)
