@@ -149,7 +149,7 @@ def _gemini_context_claims(text: str) -> List[Dict]:
     try:
         client = genai.Client(api_key=api_key)
         response = client.models.generate_content(
-            model="gemini-3.5-flash-lite",
+            model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
             contents=[
                 "Review this advertisement text for implied or context-dependent "
                 "factual, comparative, medical, financial, performance, environmental, "
