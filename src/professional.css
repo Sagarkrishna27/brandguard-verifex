@@ -564,3 +564,48 @@ textarea, select {
     margin-bottom: 10px;
   }
 }
+
+
+/* One-upload review: make native file chooser span the full upload card */
+.unified-upload .upload-area {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  align-items: stretch;
+  padding: 24px 20px;
+}
+.unified-upload .upload-area .upload-title,
+.unified-upload .upload-area .upload-hint {
+  width: 100%;
+  text-align: center;
+}
+.unified-upload .upload-area input[type="file"] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 12px 0 0;
+  padding: 8px;
+  font-size: 13px;
+  color: var(--text);
+  border: 1px solid #e4deef;
+  border-radius: 9px;
+  background: #fff;
+}
+.unified-upload .upload-area input[type="file"]::file-selector-button {
+  margin-right: 12px;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 7px;
+  color: #fff;
+  background: linear-gradient(110deg, #7652df, #b45bc4 58%, #e46b91);
+  font-weight: 700;
+  cursor: pointer;
+}
+@media (max-width: 560px) {
+  .unified-upload { padding: 14px; }
+  .unified-upload .upload-area { padding: 18px 12px; }
+  .unified-upload .upload-area input[type="file"] { font-size: 12px; }
+}
