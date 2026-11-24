@@ -31,6 +31,40 @@ function Dashboard({ onNavigate }) {
         </div>
       </section>
 
+      <section className="workflow-section judge-access-section" aria-label="Judge access">
+        <div className="section-heading">
+          <h2>Judge access</h2>
+          <p>No account, registration or demo credentials are required. The public evaluation workspace opens directly.</p>
+        </div>
+        <div className="workflow-grid">
+          <article className="workflow-card workflow-card-featured">
+            <div className="workflow-topline"><span className="workflow-number">START</span><span className="workflow-category">RECOMMENDED</span></div>
+            <h3>Test the complete product</h3>
+            <p>Upload a poster or video and review the consolidated analysis, module statuses and final report.</p>
+            <button className="primary-button" onClick={() => onNavigate('unified')}>
+              Open one-upload review <span aria-hidden="true">→</span>
+            </button>
+          </article>
+          <article className="workflow-card">
+            <div className="workflow-topline"><span className="workflow-number">NEXT</span><span className="workflow-category">CLAIM EVIDENCE</span></div>
+            <h3>Explore evidence review</h3>
+            <p>Submit advertisement text and supporting documents to inspect claim-to-evidence matching and review states.</p>
+            <button className="secondary-button" onClick={() => onNavigate('evidence')}>
+              Open evidence review <span aria-hidden="true">→</span>
+            </button>
+          </article>
+          <article className="workflow-card">
+            <div className="workflow-topline"><span className="workflow-number">EXPLORE</span><span className="workflow-category">TRUST PASSPORT</span></div>
+            <h3>Inspect verification records</h3>
+            <p>Explore public Trust Passport examples and see how a report's review status is presented.</p>
+            <button className="secondary-button" onClick={() => onNavigate('passport')}>
+              Open Trust Passport <span aria-hidden="true">→</span>
+            </button>
+          </article>
+        </div>
+        <p className="page-intro">Public submissions remain marked NEEDS REVIEW until an authorized reviewer updates them. Private reviewer credentials are not displayed on this page.</p>
+      </section>
+
       <section className="dashboard-section" aria-label="Workspace activity">
         <div className="section-heading dashboard-section-heading">
           <div>
