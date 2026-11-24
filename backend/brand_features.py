@@ -707,11 +707,58 @@ def suggest_improvements(text):
             "rule": "Readability and tone guidance.",
         })
 
+    gemini_suggestions = []
+    gemini_status = "UNAVAILABLE"
+
+    try:
+        import os
+        import json
+        from google import genai
+        from google.genai import types
+
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model="gemini-3.5-flash-lite",
+                contents=(
+                    "Review this advertisement copy and suggest specific, "
+                    "truthful improvements to clarity, readability, claim "
+                    "wording and disclaimers. Do not invent evidence or "
+                    "certifications. Return JSON with a 'suggestions' array. "
+                    "Each item must contain issue, suggestion and rule. "
+                    "Ad text:\\n" + text[:12000]
+                ),
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.2,
+                ),
+            )
+            data = json.loads(response.text or "{}")
+            items = data.get("suggestions", [])
+            if isinstance(items, list):
+                gemini_suggestions = [
+                    {
+                        "issue": str(item["issue"])[:300],
+                        "suggestion": str(item["suggestion"])[:1000],
+                        "rule": str(item["rule"])[:500],
+                    }
+                    for item in items[:8]
+                    if isinstance(item, dict)
+                    and all(item.get(k) for k in ("issue", "suggestion", "rule"))
+                ]
+            gemini_status = "COMPLETED"
+    except Exception:
+        gemini_status = "UNAVAILABLE"
+
     return {
         "success": True,
-        "assistant_type": "Rule-based copy review (not a language model)",
+        "assistant_type": "Rule-based review with Gemini contextual suggestions",
         "suggestions": suggestions,
         "suggestion_count": len(suggestions),
+        "gemini_suggestions": gemini_suggestions,
+        "gemini_suggestion_count": len(gemini_suggestions),
+        "gemini_status": gemini_status,
         "note": ("Copy-review suggestions for a human to accept or reject. "
                  "Nothing is changed automatically."),
     }

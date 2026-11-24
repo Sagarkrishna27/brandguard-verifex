@@ -8,7 +8,7 @@ from claim_analyzer import analyze_claims
 
 
 TAVILY_URL = "https://api.tavily.com/search"
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 MAX_CLAIMS = 5
 MAX_SOURCES_PER_CLAIM = 5
 REQUEST_TIMEOUT = (8, 25)
@@ -209,3 +209,4 @@ def investigate_advertisement(text):
             "assessments are not proof of claim accuracy or legal compliance."
         ),
     }
+

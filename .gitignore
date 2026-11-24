@@ -58,3 +58,10 @@ release/*.zip
 
 .kilo/
 release/
+# Local recovery backups
+*.bak
+*.backup
+*_original.py
+
+# Local Windows FFmpeg binaries
+tools/ffmpeg/

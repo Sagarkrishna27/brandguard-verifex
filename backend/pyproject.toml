@@ -17,4 +17,5 @@ dependencies = [
     "python-multipart==0.0.20",
     "python-dotenv==1.2.4",
     "pypdf>=5.0,<7",
+    "google-genai==3.6.1",
 ]

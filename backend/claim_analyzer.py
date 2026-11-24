@@ -1,4 +1,8 @@
 import re
+import os
+import json
+from google import genai
+from google.genai import types
 from typing import List, Dict
 
 
@@ -135,6 +139,78 @@ def split_into_sentences(text: str) -> List[str]:
     return [part.strip() for part in parts if part.strip()]
 
 
+
+def _gemini_context_claims(text: str) -> List[Dict]:
+    """Find possible implied claims missed by deterministic rules."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return []
+
+    try:
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-3.5-flash-lite",
+            contents=[
+                "Review this advertisement text for implied or context-dependent "
+                "factual, comparative, medical, financial, performance, environmental, "
+                "or other advertising claims that may be missed by keyword rules. "
+                "Return JSON only in this format: "
+                '{"claims":[{"text":"exact quoted text from the ad",'
+                '"category":"one category from the supplied list",'
+                '"explanation":"why this may imply a claim",'
+                '"evidence_required":"evidence needed to substantiate it"}]}. '
+                "Allowed categories: " + ", ".join(CLAIM_RULES.keys()) + ". "
+                "Only return claims supported by the supplied text. Do not invent "
+                "claims, facts, evidence, or legal violations. If none, return "
+                '{"claims":[]}. Advertisement text:\n' + text[:12000]
+            ],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.1,
+            ),
+        )
+
+        data = json.loads(response.text or "{}")
+        suggestions = data.get("claims", [])
+        if not isinstance(suggestions, list):
+            return []
+
+        results = []
+        for item in suggestions[:10]:
+            if not isinstance(item, dict):
+                continue
+
+            quote = str(item.get("text", "")).strip()
+            category = str(item.get("category", "")).upper().strip()
+
+            if (
+                not quote
+                or quote.casefold() not in text.casefold()
+                or category not in CLAIM_RULES
+            ):
+                continue
+
+            results.append({
+                "text": quote,
+                "category": category,
+                "risk_level": "REVIEW",
+                "status": "CONTEXT_REVIEW_REQUIRED",
+                "explanation": (
+                    "Gemini identified a possible implied or context-dependent "
+                    "claim: " + str(item.get("explanation", "Human review is required."))
+                ),
+                "evidence_required": str(
+                    item.get("evidence_required")
+                    or CLAIM_RULES[category]["evidence"]
+                ),
+            })
+
+        return results
+
+    except Exception:
+        # Gemini failure must never interrupt the existing rule-based analysis.
+        return []
+
 def analyze_claims(text: str) -> Dict:
     if not isinstance(text, str) or not text.strip():
         return {
@@ -197,6 +273,17 @@ def analyze_claims(text: str) -> Dict:
                     ),
                     "evidence_required": rule["evidence"],
                 })
+
+    # Supplement deterministic findings with Gemini contextual suggestions.
+    existing = {
+        (claim["text"].casefold(), claim["category"])
+        for claim in claims
+    }
+    for suggestion in _gemini_context_claims(text):
+        key = (suggestion["text"].casefold(), suggestion["category"])
+        if key not in existing:
+            claims.append(suggestion)
+            existing.add(key)
 
     return {
         "success": True,
