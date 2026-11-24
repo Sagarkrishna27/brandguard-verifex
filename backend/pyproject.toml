@@ -1,0 +1,20 @@
+[project]
+name = "brandguard-backend"
+version = "1.0.0"
+description = "BrandGuard FastAPI backend"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi==0.163.1",
+    "uvicorn==0.54.0",
+    "pillow==13.0.0",
+    "pytesseract==0.3.13",
+    "pyspellchecker==0.9.1",
+    "qrcode==8.2",
+    "requests==2.34.2",
+    "beautifulsoup4==4.15.0",
+    "numpy==2.3.5",
+    "opencv-python-headless==5.1.0.95",
+    "python-multipart==0.0.20",
+    "python-dotenv==1.2.4",
+    "pypdf>=5.0,<7",
+]
