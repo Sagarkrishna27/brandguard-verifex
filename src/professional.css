@@ -220,3 +220,148 @@ textarea, select {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+
+/* Mobile and tablet overview: switch to a full-width workspace before the
+   desktop sidebar squeezes the dashboard at common phone viewport widths. */
+@media (max-width: 900px) {
+  .app-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    flex: 0 0 auto;
+    padding: 10px 14px 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .brand {
+    margin: 0 3px 9px;
+  }
+
+  .brand-logo {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+
+  .brand h2 { font-size: 15px; }
+  .brand p { font-size: 8px; }
+
+  .navigation {
+    flex-direction: row;
+    gap: 8px;
+    max-width: 100%;
+    overflow-x: auto;
+    padding: 0 0 5px;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-group {
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .nav-group-label { display: none; }
+
+  .nav-item {
+    width: auto;
+    min-height: 36px;
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    gap: 6px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .nav-icon {
+    width: auto;
+    flex-basis: auto;
+    font-size: 13px;
+  }
+
+  .sidebar-bottom { display: none; }
+
+  .main-content {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    margin: 0;
+    padding: 22px 18px 18px;
+    overflow-x: clip;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .topbar h1 { font-size: 24px; }
+  .dashboard-subtitle { max-width: 100%; font-size: 12px; }
+  .user-profile { flex: 0 0 auto; }
+  .user-profile span { display: none; }
+
+  .hero-section {
+    min-height: 0;
+    padding: 24px 22px;
+  }
+
+  .hero-section h2 { font-size: clamp(23px, 4vw, 29px); }
+  .hero-section p { max-width: 100%; font-size: 12px; }
+  .hero-symbol { display: none; }
+
+  .dashboard-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .stats-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .stat-card { padding: 15px 16px; }
+  .stat-value-row { margin-top: 6px; }
+
+  .workflow-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .workflow-card { padding: 17px; }
+  .workflow-card p { min-height: 0; }
+  .workflow-card .primary-button,
+  .workflow-card .secondary-button { max-width: 100%; }
+
+  .judge-access-section { margin-top: 26px; }
+  .page-intro { margin-bottom: 16px; }
+
+  .footer {
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 24px;
+    padding: 14px 0 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .main-content { padding: 18px 13px 14px; }
+  .hero-section { padding: 20px 17px; }
+  .topbar h1 { font-size: 22px; }
+  .workflow-card { padding: 15px; }
+}
