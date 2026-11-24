@@ -44,6 +44,25 @@ The following describes the implemented product behavior. Source-dependent or he
 
 **Additional workspace tools:** Fake Review Analysis uses linguistic heuristics; Brand DNA creates a statistical profile from supplied scan history; the AI Poster Generator creates a deterministic, locally composed poster with editable copy/style/size/theme and a human approval step. Its design direction is a polished, human-designed result with clear hierarchy, balanced spacing, readable typography, consistent colours and controllable text/layout—not a generic AI-looking template. The current generator is a deterministic local composition engine, not a third-party generative-image service; generated imagery and advanced layout automation are not claimed as configured.
 
+
+## CodeZen Round 3 — the three committed improvements
+
+The Round 3 work is described against the original commitments, including what is implemented and what remains limited:
+
+1. **Multimodal Deepfake & Manipulation Detection**
+   - **Delivered:** integrated Image Manipulation Detection and Multimodal Media Forensics triage into the analysis workflow. The checks surface suspicious image/video characteristics for human investigation.
+   - **Boundary:** these are preliminary forensic indicators, not a definitive deepfake verdict. There is no configured model that classifies synthetic faces or voices. Face-region detection can return `NOT_CONFIGURED` if the OpenCV classifier API/data is unavailable. Audio transcription is not configured.
+
+2. **AI Legal Compliance Intelligence**
+   - **Delivered:** integrated preliminary keyword/rule-based screening with selected ASCI Code and CCPA guideline references, issue explanations and examples of evidence that may be required.
+   - **Boundary:** the rule set is not a complete legal assessment, does not cover every regulation or advertisement context, and is not legal advice. A qualified human reviewer must check the current source and applicable clauses.
+
+3. **Autonomous Advertisement Investigation**
+   - **Delivered:** implemented the claim-investigation workflow and integrations for Tavily public-source search plus Gemini preliminary assessment, with source links and explicit human-review states.
+   - **Boundary:** the live backend currently reports both Tavily and Gemini as not configured. Automated tests use mocked provider responses; live provider operation has not been verified in this deployment. Search snippets and AI assessments are not proof, and the system never marks a claim as verified automatically.
+
+These distinctions are intentional: integration code and local tests are not represented as a fully operational external service or definitive AI detection.
+
 ## Architecture and data flow
 
 - **Frontend:** React with Vite, deployed at Vercel.
