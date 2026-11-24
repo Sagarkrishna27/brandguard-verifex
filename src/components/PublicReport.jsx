@@ -34,11 +34,59 @@ function PublicReport({ reportId, slowRequestCount = 0 }) {
             <p><strong>Verification ID:</strong> <code>{report.verification_id}</code></p>
             <p><strong>Created:</strong> {new Date(report.created_at).toLocaleString()}</p>
             <p><strong>Media:</strong> {report.media_type}</p>
+            <p><strong>Revision:</strong> {report.revision_number || 1}{report.revision_of ? ` · Corrected version of ${report.revision_of}` : " · Original submission"}</p>
+            {report.revision_of && <p><a href={`/#/verify/${encodeURIComponent(report.revision_of)}`}>View original advertisement report</a></p>}
             <p><strong>Analysis result:</strong> {report.overall_status}</p>
             {report.risk_summary && <p><strong>Risk signal:</strong> {report.risk_summary}</p>}
             <p className="tool-note">This QR identifies a saved analysis report. It does not prove that an advertisement claim is true or legally compliant.</p>
           </section>
-          <section className="analysis-module-list public-report-modules">
+
+          {report.poster_data_url && (
+            <section className="evaluator-card">
+              <h2>{report.revision_of ? 'Corrected advertisement' : 'Submitted advertisement'}</h2>
+              <img src={report.poster_data_url} alt="Advertisement associated with this BrandGuard report" style={{ display: 'block', width: '100%', maxWidth: '720px', height: 'auto', margin: '16px auto', borderRadius: '12px' }} />
+            </section>
+          )}
+          {report.revision_comparison && (
+            <section className="evaluator-card">
+              <h2>Original vs corrected advertisement</h2>
+              <p>{report.revision_comparison.note}</p>
+              <h3>Findings no longer returned ({report.revision_comparison.resolved_findings?.length || 0})</h3>
+              {report.revision_comparison.resolved_findings?.length
+                ? <ul>{report.revision_comparison.resolved_findings.map((item, index) => <li key={index}>{item}</li>)}</ul>
+                : <p>No textual findings disappeared between these reports.</p>}
+              <h3>Findings still present ({report.revision_comparison.remaining_findings?.length || 0})</h3>
+              {report.revision_comparison.remaining_findings?.length
+                ? <ul>{report.revision_comparison.remaining_findings.map((item, index) => <li key={index}>{item}</li>)}</ul>
+                : <p>No exact matching findings were returned.</p>}
+              <h3>New findings ({report.revision_comparison.new_findings?.length || 0})</h3>
+              {report.revision_comparison.new_findings?.length
+                ? <ul>{report.revision_comparison.new_findings.map((item, index) => <li key={index}>{item}</li>)}</ul>
+                : <p>No new textual findings were returned.</p>}
+            </section>
+          )}
+          {report.improvement_report && (
+            <section className="evaluator-card">
+              <h2>{report.improvement_report.title}</h2>
+              <p>{report.improvement_report.summary}</p>
+              {report.improvement_report.risk_summary && <p><strong>Risk signal:</strong> {report.improvement_report.risk_summary}</p>}
+              {report.improvement_report.sections?.map((section) => (
+                <section key={section.title}>
+                  <h3>{section.title}</h3>
+                  {section.checks.map((check) => (
+                    <article className="analysis-module-card" key={check.feature}>
+                      <div className="analysis-module-heading"><strong>{check.feature}</strong><span className="analysis-status">{check.status}</span></div>
+                      {check.message && <p>{check.message}</p>}
+                      {check.findings?.length > 0 && <ul>{check.findings.map((finding, index) => <li key={index}>{finding}</li>)}</ul>}
+                    </article>
+                  ))}
+                </section>
+              ))}
+              {report.improvement_report.action_plan?.length > 0 && <section><h3>Action plan</h3><ol>{report.improvement_report.action_plan.map((item, index) => <li key={index}><strong>{item.priority}: {item.action}</strong><p>{item.reason}</p><small>Source: {item.source}</small></li>)}</ol></section>}
+              <p className="tool-note">{report.improvement_report.disclaimer}</p>
+            </section>
+          )}
+\n          <section className="analysis-module-list public-report-modules">
             {report.modules.map((module) => (
               <article className="analysis-module-card" key={module.id}>
                 <div className="analysis-module-heading"><h2>{module.label}</h2><span className={`analysis-status analysis-status-${String(module.status).toLowerCase().replaceAll('_', '-')}`}>{module.status.replaceAll('_', ' ')}</span></div>
