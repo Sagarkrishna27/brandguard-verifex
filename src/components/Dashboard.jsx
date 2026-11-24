@@ -25,18 +25,24 @@ function Dashboard({ onNavigate }) {
             Start an advertisement review <span aria-hidden="true">→</span>
           </button>
         </div>
-        <div className="hero-symbol" aria-label="Verifex — trust by design">
-          <svg className="hero-symbol-logo" viewBox="0 0 100 100" role="img" aria-label="Verifex V logo">
-            <defs>
-              <linearGradient id="hero-verifex-gradient" x1="12" y1="8" x2="88" y2="92" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#8B5CF6" />
-                <stop offset="52%" stopColor="#3978F6" />
-                <stop offset="100%" stopColor="#22D3EE" />
-              </linearGradient>
-            </defs>
-            <path d="M12 17h19l19 49 19-49h19L57 88h-14L12 17Z" fill="url(#hero-verifex-gradient)" />
-          </svg>
-          <span className="hero-symbol-caption">TRUST<br />BY DESIGN</span>
+        <div className="hero-symbol hero-brand-lockup" aria-label="VERIFEX — Innovate, Verify, Trust. Trust by Design.">
+          <div className="hero-brand-main">
+            <svg className="hero-symbol-logo" viewBox="0 0 100 100" role="img" aria-label="VERIFEX gradient V emblem">
+              <defs>
+                <linearGradient id="hero-verifex-gradient" x1="12" y1="8" x2="88" y2="92" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#8B5CF6" />
+                  <stop offset="52%" stopColor="#3978F6" />
+                  <stop offset="100%" stopColor="#22D3EE" />
+                </linearGradient>
+              </defs>
+              <path d="M12 17h19l19 49 19-49h19L57 88h-14L12 17Z" fill="url(#hero-verifex-gradient)" />
+            </svg>
+            <div className="hero-brand-type">
+              <strong>VERIFEX</strong>
+              <span>INNOVATE <i>•</i> VERIFY <i>•</i> TRUST</span>
+            </div>
+          </div>
+          <span className="hero-symbol-caption">TRUST BY DESIGN</span>
         </div>
       </section>
 
