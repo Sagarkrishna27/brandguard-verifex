@@ -1057,6 +1057,25 @@ async def start_unified_analysis(
             except OSError: pass
         raise HTTPException(status_code=400, detail="The uploaded file is not a valid image or decodable video.")
 
+    if revision_of.strip():
+        with _connect() as connection:
+            parent_row = connection.execute(
+                "SELECT payload_json FROM analysis_reports WHERE id = ?",
+                (revision_of.strip(),),
+            ).fetchone()
+        if not parent_row:
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+            raise HTTPException(status_code=404, detail="The original BrandGuard report was not found. Upload the corrected poster from a valid report.")
+        parent_payload = json.loads(parent_row["payload_json"])
+        if not str(parent_payload.get("media_type", "")).startswith("image/"):
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+            raise HTTPException(status_code=400, detail="Only image advertisements can be submitted as corrected poster revisions.")
     media_kind = "video" if media_type.startswith("video/") else "image"
     catalog = VIDEO_MODULES if media_kind == "video" else IMAGE_MODULES
     modules = [{"id": module_id, "label": label, "status": "PENDING", "message": "Queued"} for module_id, label in catalog]
