@@ -47,6 +47,24 @@ function PublicReport({ reportId, slowRequestCount = 0 }) {
               <img src={report.poster_data_url} alt="Advertisement associated with this BrandGuard report" style={{ display: 'block', width: '100%', maxWidth: '720px', height: 'auto', margin: '16px auto', borderRadius: '12px' }} />
             </section>
           )}
+          {report.revision_comparison && (
+            <section className="evaluator-card">
+              <h2>Original vs corrected advertisement</h2>
+              <p>{report.revision_comparison.note}</p>
+              <h3>Findings no longer returned ({report.revision_comparison.resolved_findings?.length || 0})</h3>
+              {report.revision_comparison.resolved_findings?.length
+                ? <ul>{report.revision_comparison.resolved_findings.map((item, index) => <li key={index}>{item}</li>)}</ul>
+                : <p>No textual findings disappeared between these reports.</p>}
+              <h3>Findings still present ({report.revision_comparison.remaining_findings?.length || 0})</h3>
+              {report.revision_comparison.remaining_findings?.length
+                ? <ul>{report.revision_comparison.remaining_findings.map((item, index) => <li key={index}>{item}</li>)}</ul>
+                : <p>No exact matching findings were returned.</p>}
+              <h3>New findings ({report.revision_comparison.new_findings?.length || 0})</h3>
+              {report.revision_comparison.new_findings?.length
+                ? <ul>{report.revision_comparison.new_findings.map((item, index) => <li key={index}>{item}</li>)}</ul>
+                : <p>No new textual findings were returned.</p>}
+            </section>
+          )}
           {report.improvement_report && (
             <section className="evaluator-card">
               <h2>{report.improvement_report.title}</h2>
