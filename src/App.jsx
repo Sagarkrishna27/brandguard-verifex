@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from 'react'
 import './App.css'
+import './professional.css'
 import Sidebar from './components/Sidebar.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import PosterEvaluator from './components/PosterEvaluator.jsx'
