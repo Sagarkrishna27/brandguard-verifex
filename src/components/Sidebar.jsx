@@ -1,57 +1,66 @@
-/*
-  Sidebar.jsx
-  ----------
-  The dark navy navigation bar shown on the left of every page.
-  It receives two pieces of information from App.jsx:
-    - activePage: which page is currently open (highlights that button)
-    - onNavigate: the function to call when a nav button is clicked
-*/
-
-// Each entry: the page "id" App.jsx understands, plus the label + icon shown.
-const NAV_ITEMS = [
-  { id: 'unified', label: 'One-Upload Review', icon: '✦' },
-  { id: 'dashboard', label: 'Dashboard', icon: '▦' },
-  { id: 'create', label: 'Create Poster', icon: '✦' },
-  { id: 'generator', label: 'AI Poster Generator', icon: '✧' },
-  { id: 'evaluate', label: 'Evaluate Poster', icon: '⌕' },
-  { id: 'evidence', label: 'Claim Evidence', icon: '✓' },
-  { id: 'video', label: 'Video Analysis', icon: '▶' },
-  { id: 'tools', label: 'Ad Tools', icon: '⚒' },
-  { id: 'passport', label: 'Trust Passport', icon: '◈' },
-  { id: 'settings', label: 'Settings', icon: '⚙' },
+const NAV_GROUPS = [
+  {
+    label: 'WORKSPACE',
+    items: [
+      { id: 'dashboard', label: 'Overview', icon: '▦' },
+      { id: 'unified', label: 'One-upload review', icon: '↗' },
+    ],
+  },
+  {
+    label: 'ANALYSIS',
+    items: [
+      { id: 'evaluate', label: 'Poster evaluation', icon: '⌕' },
+      { id: 'evidence', label: 'Claim evidence', icon: '✓' },
+      { id: 'video', label: 'Video analysis', icon: '▹' },
+      { id: 'tools', label: 'Advertisement tools', icon: '⌘' },
+    ],
+  },
+  {
+    label: 'MANAGE',
+    items: [
+      { id: 'passport', label: 'Trust Passport', icon: '◇' },
+      { id: 'generator', label: 'Poster generator', icon: '✳' },
+      { id: 'settings', label: 'Settings', icon: '⚙' },
+    ],
+  },
 ]
 
 function Sidebar({ activePage, onNavigate }) {
-  const visibleNavItems = NAV_ITEMS.filter((item) => item.id !== 'create')
   return (
     <aside className="sidebar">
-      {/* Brand / logo area */}
       <div className="brand">
-        <div className="brand-logo">B</div>
-        <div>
+        <div className="brand-logo" aria-hidden="true">B</div>
+        <div className="brand-copy">
           <h2>BrandGuard</h2>
-          <p>Advertisement Trust Platform</p>
+          <p>ADVERTISING INTEGRITY</p>
         </div>
       </div>
 
-      {/* Navigation buttons. aria-current tells screen readers which page is open. */}
       <nav className="navigation" aria-label="Main navigation">
-        {visibleNavItems.map((item) => (
-          <button
-            key={item.id}
-            className={item.id === activePage ? 'nav-item active' : 'nav-item'}
-            aria-current={item.id === activePage ? 'page' : undefined}
-            onClick={() => onNavigate(item.id)}
-          >
-            <span className="nav-icon" aria-hidden="true">{item.icon}</span>
-            {item.label}
-          </button>
+        {NAV_GROUPS.map((group) => (
+          <div className="nav-group" key={group.label}>
+            <p className="nav-group-label">{group.label}</p>
+            {group.items.map((item) => (
+              <button
+                key={item.id}
+                className={item.id === activePage ? 'nav-item active' : 'nav-item'}
+                aria-current={item.id === activePage ? 'page' : undefined}
+                onClick={() => onNavigate(item.id)}
+              >
+                <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
         ))}
       </nav>
 
       <div className="sidebar-bottom">
-        <p>VERIFEX TEAM</p>
-        <span>BrandGuard Project</span>
+        <div className="sidebar-status-dot" />
+        <div>
+          <p>VERIFEX TEAM</p>
+          <span>Human review stays in control</span>
+        </div>
       </div>
     </aside>
   )

@@ -1,23 +1,23 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
 
 :root {
-  font-family: 'DM Sans', sans-serif;
-  color: #172033;
-  background: #f4f6fb;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #182230;
+  background: #f5f7fa;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --primary: #7657e8;
-  --primary-dark: #6041cc;
-  --background: #f7f6fc;
+  --primary: #2456a6;
+  --primary-dark: #1b447f;
+  --background: #f5f7fa;
   --surface: #ffffff;
-  --text: #20223a;
-  --muted: #74758d;
-  --border: #e9e6f2;
-  --danger: #df526c;
-  --warning: #d68a22;
-  --success: #159b78;
+  --text: #182230;
+  --muted: #667386;
+  --border: #e1e6ed;
+  --danger: #b93838;
+  --warning: #946200;
+  --success: #19734b;
 }
 
 * { box-sizing: border-box; }
@@ -26,4 +26,4 @@ button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
 a { color: inherit; text-decoration: none; }
 #root { width: 100%; min-height: 100vh; }
-::selection { background: #dce3ff; color: #263b9b; }
+::selection { background: #dce8f8; color: #183e75; }
