@@ -8,6 +8,13 @@
 - **Source repository:** https://github.com/Sagarkrishna27/brandguard-verifex
 - **Deployment and test notes:** [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) · [FINAL_VERIFICATION_REPORT.md](./FINAL_VERIFICATION_REPORT.md)
 
+## Judge access
+
+The live evaluation workspace is public and opens directly at the dashboard. **No login, registration or demo credentials are required.** Judges can start with the dashboard's **Judge access** section and open the one-upload poster/video review, evidence review or public Trust Passport examples.
+
+The authorized Trust Passport reviewer workflow is separate from public product access. Its backend-only `BRANDGUARD_REVIEWER_TOKEN` is a privileged secret and is intentionally not displayed in the website or shared as a public demo credential. Public submissions remain `NEEDS REVIEW` until an authorized reviewer updates them.
+
+
 ## What BrandGuard includes
 
 ### Unified poster and video review
