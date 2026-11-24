@@ -769,6 +769,74 @@ def _run_video_job(job_id, row):
     return {"video": None, "text": "", "claims": []}
 
 
+
+def _build_improvement_report(modules, risk_summary=None):
+    """Build one traceable, actionable report from all module outcomes."""
+    groups = [
+        ("Copy, OCR & readability", ["ocr", "ocr_regions", "critical_values"]),
+        ("Claims & supporting evidence", ["claim_analysis", "claim_evidence", "proof_claim"]),
+        ("Legal wording & disclaimers", ["legal_compliance", "disclaimer"]),
+        ("Offers, prices & destination", ["price_discount", "website_truth", "food_verification", "qr"]),
+        ("Visual quality & authenticity", ["media_forensics", "manipulation"]),
+        ("Overall quality & risk", ["evaluation", "risk", "completeness", "improvement"]),
+    ]
+    by_id = {item.get("id"): item for item in modules}
+    sections, actions, limitations = [], [], []
+    for title, ids in groups:
+        checks = []
+        for module_id in ids:
+            item = by_id.get(module_id)
+            if not item:
+                continue
+            status = item.get("status", "UNKNOWN")
+            result = item.get("result") or {}
+            findings = []
+            if isinstance(result, dict):
+                for key, value in result.items():
+                    if isinstance(value, str) and value.strip():
+                        findings.append(key.replace("_", " ").title() + ": " + value.strip()[:700])
+                    elif isinstance(value, list):
+                        for entry in value[:8]:
+                            if isinstance(entry, str) and entry.strip():
+                                findings.append(entry.strip()[:700])
+                            elif isinstance(entry, dict):
+                                short = "; ".join(str(k).replace("_", " ") + ": " + str(v)[:180]
+                                                  for k, v in list(entry.items())[:5]
+                                                  if isinstance(v, (str, int, float, bool)))
+                                if short:
+                                    findings.append(short)
+            checks.append({"feature": item.get("label", module_id), "status": status,
+                           "message": item.get("message", ""), "findings": findings[:8]})
+            if status != "COMPLETED":
+                limitations.append({"feature": item.get("label", module_id), "status": status,
+                                    "message": item.get("message", "No result returned.")})
+                actions.append({"priority": "Review", "action": "Manually review " + item.get("label", module_id),
+                                "reason": item.get("message") or ("Check status: " + status),
+                                "source": item.get("label", module_id)})
+        if checks:
+            sections.append({"title": title, "checks": checks})
+    improvement = by_id.get("improvement", {}).get("result") or {}
+    if isinstance(improvement, dict):
+        for key in ("suggestions", "improvements", "recommendations", "issues"):
+            values = improvement.get(key)
+            if isinstance(values, list):
+                for value in values[:15]:
+                    if isinstance(value, str) and value.strip():
+                        actions.append({"priority": "Recommended", "action": value.strip(),
+                                        "reason": "Advertisement Improvement Assistant finding.",
+                                        "source": "Advertisement Improvement Assistant"})
+    if risk_summary:
+        actions.insert(0, {"priority": "High attention",
+                           "action": "Review all high-risk findings before publishing.",
+                           "reason": "BrandGuard risk signal: " + str(risk_summary),
+                           "source": "Risk Alerts"})
+    return {"title": "BrandGuard – Complete Advertisement Improvement Report",
+            "summary": "Consolidated findings from the applicable advertisement checks, with traceable sources and an action plan.",
+            "risk_summary": risk_summary, "sections": sections, "action_plan": actions[:30],
+            "limitations": limitations,
+            "disclaimer": "Decision-support only. This report is not legal advice, proof that claims are true, or certification of media authenticity. Human review and supporting evidence remain necessary."}
+
+
 def _finalize_job(job_id, row, media_kind, analysis):
     current = _load_job(job_id)
     modules = json.loads(current["modules_json"])
@@ -791,6 +859,7 @@ def _finalize_job(job_id, row, media_kind, analysis):
         "overall_status": "COMPLETED WITH LIMITATIONS" if failures == 0 else "COMPLETED WITH MODULE FAILURES",
         "risk_summary": (risk_module.get("result") or {}).get("alert_level") or (risk_module.get("result") or {}).get("risk_level") or (risk_module.get("result") or {}).get("overall_risk"),
         "modules": modules,
+        "improvement_report": _build_improvement_report(modules, (risk_module.get("result") or {}).get("alert_level") or (risk_module.get("result") or {}).get("risk_level") or (risk_module.get("result") or {}).get("overall_risk")),
         "ocr": analysis.get("ocr"),
         "video": analysis.get("video"),
         "claims": analysis.get("claims", []),
