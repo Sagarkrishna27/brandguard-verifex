@@ -234,7 +234,7 @@ def _food_check(text):
         if api_key:
             client = bg.genai.Client(api_key=api_key)
             response = client.models.generate_content(
-                model="gemini-3.5-flash-lite",
+                model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
                 contents=(
                     "Contextually review this food advertisement text. Identify "
                     "food, nutrition, health, organic, ingredient and certification "
@@ -345,7 +345,7 @@ def _legal_compliance_check(text):
             client = bg.genai.Client(api_key=api_key)
             categories = [rule["category"] for rule in rules]
             response = client.models.generate_content(
-                model="gemini-3.5-flash-lite",
+                model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
                 contents=(
                     "Review this advertisement for additional implied or contextual "
                     "claims relevant to Indian advertising compliance. Return JSON only: "
@@ -453,7 +453,7 @@ def _completeness_check(text, disclaimer_result=None):
         if api_key:
             client = bg.genai.Client(api_key=api_key)
             response = client.models.generate_content(
-                model="gemini-3.5-flash-lite",
+                model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
                 contents=(
                     "Review this advertisement for potentially missing information. "
                     "Return JSON with 'additional_missing_information' as a list "
@@ -617,7 +617,7 @@ def _run_image_job(job_id, row):
             source_image.save(buffer, format="JPEG")
             client = bg.genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
             response = client.models.generate_content(
-                model="gemini-3.5-flash-lite",
+                model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
                 contents=[
                     bg.types.Part.from_bytes(
                         data=buffer.getvalue(), mime_type="image/jpeg"
@@ -628,8 +628,13 @@ def _run_image_job(job_id, row):
                 ],
             )
             result["gemini_context_review"] = response.text or ""
-        except Exception:
+        except Exception as error:
             result["gemini_context_review"] = "Gemini review unavailable."
+            result["gemini_status"] = "UNAVAILABLE"
+            result["gemini_error"] = f"{type(error).__name__}: {str(error)[:220]}"
+        else:
+            result["gemini_status"] = "COMPLETED"
+            result["gemini_error"] = None
         return result
 
     parallel = {
@@ -645,7 +650,7 @@ def _run_image_job(job_id, row):
         "price_discount": lambda: _price_check(text),
         "website_truth": lambda: _website_check(text),
         "food_verification": lambda: _food_check(text),
-        "improvement": lambda: bg.suggest_improvements(text) if text.strip() else _skip("No readable OCR text to improve."),
+        "improvement": lambda: bg.suggest_improvements(text, image=image) if text.strip() else _skip("No readable OCR text to improve."),
         "completeness": lambda: _completeness_check(text),
     }
     outcomes = _run_parallel(job_id, parallel)
@@ -704,7 +709,7 @@ def _run_video_job(job_id, row):
 
                 client = bg.genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
                 response = client.models.generate_content(
-                    model="gemini-3.5-flash-lite",
+                    model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
                     contents=contents,
                 )
                 result["gemini_context_review"] = response.text or ""
