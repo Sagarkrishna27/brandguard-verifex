@@ -563,6 +563,7 @@ def _public_report(report):
         "improvement_report": report.get("improvement_report"),
         "revision_of": report.get("revision_of"),
         "revision_number": report.get("revision_number", 1),
+        "revision_comparison": report.get("revision_comparison"),
         "poster_data_url": report.get("poster_data_url"),
         "limitations": [
             "A report ID identifies a stored analysis record; cryptographic report-integrity verification is not implemented, and it does not certify claim truth or legal compliance.",
@@ -778,16 +779,36 @@ def _run_video_job(job_id, row):
 
 
 def _build_improvement_report(modules, risk_summary=None):
-    """Build one traceable, actionable report from all module outcomes."""
+    """Build one traceable report from every analysis module outcome."""
     groups = [
-        ("Copy, OCR & readability", ["ocr", "ocr_regions", "critical_values"]),
+        ("Copy, OCR & readability", ["ocr", "ocr_regions", "critical_values", "frame_ocr_claims"]),
         ("Claims & supporting evidence", ["claim_analysis", "claim_evidence", "proof_claim"]),
         ("Legal wording & disclaimers", ["legal_compliance", "disclaimer"]),
         ("Offers, prices & destination", ["price_discount", "website_truth", "food_verification", "qr"]),
-        ("Visual quality & authenticity", ["media_forensics", "manipulation"]),
+        ("Visual quality & authenticity", ["media_forensics", "manipulation", "video_validation"]),
         ("Overall quality & risk", ["evaluation", "risk", "completeness", "improvement"]),
     ]
     by_id = {item.get("id"): item for item in modules}
+
+    def flatten(value, prefix="", depth=0):
+        if depth > 5 or value is None:
+            return []
+        output = []
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if str(key).lower() in {"image", "image_base64", "poster_data_url", "qr_code_base64", "raw_bytes"}:
+                    continue
+                label = prefix + str(key).replace("_", " ") + ": "
+                output.extend(flatten(child, label, depth + 1))
+        elif isinstance(value, (list, tuple)):
+            for child in value[:30]:
+                output.extend(flatten(child, prefix, depth + 1))
+        elif isinstance(value, (str, int, float, bool)):
+            rendered = str(value).strip()
+            if rendered and rendered.lower() not in {"none", "false"}:
+                output.append((prefix + rendered)[:900])
+        return output
+
     sections, actions, limitations = [], [], []
     for title, ids in groups:
         checks = []
@@ -796,52 +817,97 @@ def _build_improvement_report(modules, risk_summary=None):
             if not item:
                 continue
             status = item.get("status", "UNKNOWN")
-            result = item.get("result") or {}
-            findings = []
-            if isinstance(result, dict):
-                for key, value in result.items():
-                    if isinstance(value, str) and value.strip():
-                        findings.append(key.replace("_", " ").title() + ": " + value.strip()[:700])
-                    elif isinstance(value, list):
-                        for entry in value[:8]:
-                            if isinstance(entry, str) and entry.strip():
-                                findings.append(entry.strip()[:700])
-                            elif isinstance(entry, dict):
-                                short = "; ".join(str(k).replace("_", " ") + ": " + str(v)[:180]
-                                                  for k, v in list(entry.items())[:5]
-                                                  if isinstance(v, (str, int, float, bool)))
-                                if short:
-                                    findings.append(short)
-            checks.append({"feature": item.get("label", module_id), "status": status,
-                           "message": item.get("message", ""), "findings": findings[:8]})
+            findings = flatten(item.get("result"))
+            check = {
+                "id": module_id,
+                "feature": item.get("label", module_id),
+                "status": status,
+                "message": item.get("message", ""),
+                "findings": findings[:12],
+            }
+            checks.append(check)
             if status != "COMPLETED":
-                limitations.append({"feature": item.get("label", module_id), "status": status,
-                                    "message": item.get("message", "No result returned.")})
-                actions.append({"priority": "Review", "action": "Manually review " + item.get("label", module_id),
-                                "reason": item.get("message") or ("Check status: " + status),
-                                "source": item.get("label", module_id)})
+                limitation = {"feature": check["feature"], "status": status,
+                              "message": check["message"] or "The check did not complete."}
+                limitations.append(limitation)
+                actions.append({
+                    "priority": "Review",
+                    "action": "Manually review " + check["feature"],
+                    "reason": limitation["message"],
+                    "source": check["feature"],
+                })
         if checks:
             sections.append({"title": title, "checks": checks})
-    improvement = by_id.get("improvement", {}).get("result") or {}
-    if isinstance(improvement, dict):
-        for key in ("suggestions", "improvements", "recommendations", "issues"):
-            values = improvement.get(key)
+
+    improvement = by_id.get("improvement", {})
+    improvement_result = improvement.get("result") or {}
+    if isinstance(improvement_result, dict):
+        for key in ("suggestions", "improvements", "recommendations", "issues", "action_items"):
+            values = improvement_result.get(key)
             if isinstance(values, list):
-                for value in values[:15]:
+                for value in values[:20]:
                     if isinstance(value, str) and value.strip():
-                        actions.append({"priority": "Recommended", "action": value.strip(),
-                                        "reason": "Advertisement Improvement Assistant finding.",
-                                        "source": "Advertisement Improvement Assistant"})
+                        actions.append({
+                            "priority": "Recommended",
+                            "action": value.strip()[:900],
+                            "reason": "Returned by the Advertisement Improvement Assistant.",
+                            "source": "Advertisement Improvement Assistant",
+                        })
+                    elif isinstance(value, dict):
+                        action = value.get("recommendation") or value.get("suggestion") or value.get("action") or value.get("issue")
+                        if action:
+                            actions.append({
+                                "priority": str(value.get("priority") or "Recommended"),
+                                "action": str(action)[:900],
+                                "reason": str(value.get("reason") or value.get("explanation") or "Improvement Assistant finding.")[:900],
+                                "source": "Advertisement Improvement Assistant",
+                            })
     if risk_summary:
-        actions.insert(0, {"priority": "High attention",
-                           "action": "Review all high-risk findings before publishing.",
-                           "reason": "BrandGuard risk signal: " + str(risk_summary),
-                           "source": "Risk Alerts"})
-    return {"title": "BrandGuard – Complete Advertisement Improvement Report",
-            "summary": "Consolidated findings from the applicable advertisement checks, with traceable sources and an action plan.",
-            "risk_summary": risk_summary, "sections": sections, "action_plan": actions[:30],
-            "limitations": limitations,
-            "disclaimer": "Decision-support only. This report is not legal advice, proof that claims are true, or certification of media authenticity. Human review and supporting evidence remain necessary."}
+        actions.insert(0, {
+            "priority": "High attention",
+            "action": "Review all high-risk findings before publishing.",
+            "reason": "BrandGuard risk signal: " + str(risk_summary),
+            "source": "Risk Alerts",
+        })
+    unique_actions, seen = [], set()
+    for action in actions:
+        key = (action["action"].casefold(), action["source"].casefold())
+        if key not in seen:
+            seen.add(key)
+            unique_actions.append(action)
+    return {
+        "title": "BrandGuard – Complete Advertisement Improvement Report",
+        "summary": "Consolidated findings from all applicable advertisement checks, with traceable sources and a prioritized action plan.",
+        "risk_summary": risk_summary,
+        "sections": sections,
+        "action_plan": unique_actions[:40],
+        "limitations": limitations,
+        "disclaimer": "Decision-support only. This report is not legal advice, proof that claims are true, or certification of media authenticity. Human review and supporting evidence remain necessary.",
+    }
+
+
+def _compare_improvement_reports(previous, current):
+    """Compare textual findings across two report revisions without implying approval."""
+    def finding_set(report):
+        values = set()
+        for section in (report or {}).get("sections", []):
+            for check in section.get("checks", []):
+                for finding in check.get("findings", []):
+                    normalized = re.sub(r"\s+", " ", str(finding)).strip().casefold()
+                    if normalized:
+                        values.add(normalized)
+        return values
+
+    before = finding_set(previous)
+    after = finding_set(current)
+    return {
+        "previous_report_id": None,
+        "resolved_findings": sorted(before - after),
+        "remaining_findings": sorted(before & after),
+        "new_findings": sorted(after - before),
+        "note": "Textual findings are compared between reports. A changed or absent finding is not proof that the underlying issue is fixed; review the corrected poster and evidence.",
+    }
+
 
 
 def _finalize_job(job_id, row, media_kind, analysis):
@@ -857,6 +923,17 @@ def _finalize_job(job_id, row, media_kind, analysis):
     current = _load_job(job_id)
     modules = json.loads(current["modules_json"])
     risk_module = next((item for item in modules if item["id"] == "risk"), {})
+    parent_report = None
+    revision_number = 1
+    revision_of = row["revision_of"] if "revision_of" in row.keys() else None
+    if revision_of:
+        with _connect() as connection:
+            parent_row = connection.execute(
+                "SELECT payload_json FROM analysis_reports WHERE id = ?", (revision_of,)
+            ).fetchone()
+        if parent_row:
+            parent_report = json.loads(parent_row["payload_json"])
+            revision_number = int(parent_report.get("revision_number") or 1) + 1
     report = {
         "verification": verification,
         "created_at": row["created_at"],
@@ -867,14 +944,18 @@ def _finalize_job(job_id, row, media_kind, analysis):
         "risk_summary": (risk_module.get("result") or {}).get("alert_level") or (risk_module.get("result") or {}).get("risk_level") or (risk_module.get("result") or {}).get("overall_risk"),
         "modules": modules,
         "improvement_report": _build_improvement_report(modules, (risk_module.get("result") or {}).get("alert_level") or (risk_module.get("result") or {}).get("risk_level") or (risk_module.get("result") or {}).get("overall_risk")),
-        "revision_of": row["revision_of"] if "revision_of" in row.keys() else None,
-        "revision_number": 2 if ("revision_of" in row.keys() and row["revision_of"]) else 1,
+        "revision_of": revision_of,
+        "revision_number": revision_number,
         "poster_data_url": ("data:" + row["media_type"] + ";base64," + base64.b64encode(Path(row["temp_path"]).read_bytes()).decode("ascii")) if media_kind == "image" else None,
         "ocr": analysis.get("ocr"),
         "video": analysis.get("video"),
         "claims": analysis.get("claims", []),
         "note": "This report is an analysis record, not a certification or legal decision.",
     }
+    if parent_report:
+        comparison = _compare_improvement_reports(parent_report.get("improvement_report"), report["improvement_report"])
+        comparison["previous_report_id"] = revision_of
+        report["revision_comparison"] = comparison
     _store_finished_report(report)
     _update_job(job_id, status="COMPLETED" if failures == 0 else "COMPLETED_WITH_FAILURES", report=report)
 
