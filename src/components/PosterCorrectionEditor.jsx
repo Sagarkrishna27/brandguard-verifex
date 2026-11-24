@@ -12,21 +12,6 @@ function PosterCorrectionEditor({ imageUrl, onExport, onClose }) {
   const [layers, setLayers] = useState([])
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    const image = new Image()
-    image.onload = () => {
-      imageRef.current = image
-      draw(layers, image)
-    }
-    image.onerror = () => setError('Could not load the original poster image.')
-    image.src = imageUrl
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageUrl])
-
-  useEffect(() => {
-    if (imageRef.current) draw(layers, imageRef.current)
-  }, [layers])
-
   function draw(currentLayers, image) {
     const canvas = canvasRef.current
     if (!canvas || !image) return
@@ -52,6 +37,23 @@ function PosterCorrectionEditor({ imageUrl, onExport, onClose }) {
       lines.forEach((line, index) => context.fillText(line, px + 12, py + 9 + index * lineHeight + lineHeight / 2, Math.max(10, width - 24)))
     })
   }
+
+
+  useEffect(() => {
+    const image = new Image()
+    image.onload = () => {
+      imageRef.current = image
+      draw(layers, image)
+    }
+    image.onerror = () => setError('Could not load the original poster image.')
+    image.src = imageUrl
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageUrl])
+
+  useEffect(() => {
+    if (imageRef.current) draw(layers, imageRef.current)
+  }, [layers])
+
 
   function addCorrection(event) {
     event.preventDefault()
