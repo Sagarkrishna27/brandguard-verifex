@@ -9,10 +9,6 @@ beautifulsoup4==4.15.0
 numpy==2.3.5
 opencv-python-headless==5.1.0.95
 python-multipart==0.0.20
-round3-development
 pypdf>=5.0,<7
 python-dotenv==1.2.4
 google-genai==3.6.1
-python-dotenv==1.2.4
-pypdf>=5.0,<7
- main
