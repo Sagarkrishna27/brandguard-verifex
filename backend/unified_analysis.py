@@ -1098,12 +1098,17 @@ def get_unified_analysis_job(job_id: str):
     row = _load_job(job_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Analysis job not found.")
+    report_payload = json.loads(row["report_json"]) if row["report_json"] else None
+    # The full poster is served only from the public report endpoint, not repeated
+    # in every progress-poll response.
+    if report_payload:
+        report_payload.pop("poster_data_url", None)
     return {
         "success": row["status"] != "FAILED",
         "job_id": row["id"], "report_id": row["report_id"],
         "created_at": row["created_at"], "status": row["status"],
         "modules": json.loads(row["modules_json"]),
-        "report": json.loads(row["report_json"]) if row["report_json"] else None,
+        "report": report_payload,
         "error": row["error"],
     }
 
