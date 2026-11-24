@@ -519,3 +519,48 @@ textarea, select {
   .hero-section { padding: 19px 16px !important; }
   .topbar h1 { font-size: 22px !important; }
 }
+
+
+/* Verifex hero identity spacing */
+.hero-copy {
+  max-width: min(650px, calc(100% - 170px));
+  padding-right: 12px;
+}
+.hero-symbol {
+  width: 142px;
+  height: 154px;
+  gap: 0;
+  padding: 15px 12px;
+  box-sizing: border-box;
+}
+.hero-symbol-logo {
+  display: block;
+  width: 76px;
+  height: 76px;
+  flex: 0 0 auto;
+  margin-bottom: 13px;
+}
+.hero-symbol-caption {
+  display: block;
+  margin-top: 0;
+  line-height: 1.55;
+}
+@media (max-width: 900px) {
+  .hero-copy {
+    max-width: 100%;
+    padding-right: 0;
+  }
+  .hero-symbol {
+    position: static;
+    transform: none;
+    width: 112px;
+    height: auto;
+    min-height: 124px;
+    margin: 22px auto 0;
+  }
+  .hero-symbol-logo {
+    width: 58px;
+    height: 58px;
+    margin-bottom: 10px;
+  }
+}
