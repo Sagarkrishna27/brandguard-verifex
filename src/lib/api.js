@@ -1,7 +1,7 @@
 const configuredBase = import.meta.env.VITE_API_BASE_URL?.trim()
 
-// In production, an unset API origin uses the same-origin /api rewrite.
-// Never silently send a judge's browser to its own localhost.
+// In production, an unset API origin uses the deployed Render backend.
+// Local development continues to use the local FastAPI server.
 const fallbackBase = import.meta.env.PROD ? 'https://brandguard-backend-fxhr.onrender.com' : 'http://127.0.0.1:8000'
 
 export const API_BASE_URL = (configuredBase || fallbackBase).replace(/\/$/, '')
