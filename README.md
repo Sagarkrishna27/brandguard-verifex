@@ -42,7 +42,7 @@ The following describes the implemented product behavior. Source-dependent or he
 20. **Food Advertisement Verification** — identifies food-related claims and the evidence they may need. Official FSSAI sources, lab reports and accreditation records are not automatically supplied by the current demo.
 21. **Shareable verification reports and QR codes** — generates report/Trust Passport records and QR links. Public records are read-only and require human review; external QR scanning and durable persistence across host restarts have not been verified.
 
-**Additional workspace tools:** Fake Review Analysis uses linguistic heuristics; Brand DNA creates a statistical profile from supplied scan history; the AI Poster Generator creates a deterministic, locally composed poster with editable copy/style/size/theme and a human approval step. The poster generator is not connected to a third-party generative-image service.
+**Additional workspace tools:** Fake Review Analysis uses linguistic heuristics; Brand DNA creates a statistical profile from supplied scan history; the AI Poster Generator creates a deterministic, locally composed poster with editable copy/style/size/theme and a human approval step. Its design direction is a polished, human-designed result with clear hierarchy, balanced spacing, readable typography, consistent colours and controllable text/layout—not a generic AI-looking template. The current generator is a deterministic local composition engine, not a third-party generative-image service; generated imagery and advanced layout automation are not claimed as configured.
 
 ## Architecture and data flow
 
