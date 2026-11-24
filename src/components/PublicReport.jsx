@@ -35,6 +35,7 @@ function PublicReport({ reportId, slowRequestCount = 0 }) {
             <p><strong>Created:</strong> {new Date(report.created_at).toLocaleString()}</p>
             <p><strong>Media:</strong> {report.media_type}</p>
             <p><strong>Revision:</strong> {report.revision_number || 1}{report.revision_of ? ` · Corrected version of ${report.revision_of}` : " · Original submission"}</p>
+            {report.revision_of && <p><a href={`/#/verify/${encodeURIComponent(report.revision_of)}`}>View original advertisement report</a></p>}
             <p><strong>Analysis result:</strong> {report.overall_status}</p>
             {report.risk_summary && <p><strong>Risk signal:</strong> {report.risk_summary}</p>}
             <p className="tool-note">This QR identifies a saved analysis report. It does not prove that an advertisement claim is true or legally compliant.</p>
